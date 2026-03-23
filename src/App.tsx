@@ -183,6 +183,9 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [tempDisplayName, setTempDisplayName] = useState("");
+  const [tempProfilePic, setTempProfilePic] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
@@ -269,6 +272,13 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
+      if (user) {
+        setProfilePic(user.photoURL);
+        setDisplayName(user.displayName || "");
+      } else {
+        setProfilePic(null);
+        setDisplayName("");
+      }
       setIsAuthReady(true);
     });
     return () => unsubscribe();
@@ -410,14 +420,40 @@ export default function App() {
     }
   };
 
-  const handleProfilePicUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfilePicUpload = (e: React.ChangeEvent<HTMLInputElement>, isTemp = false) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setProfilePic(reader.result as string);
+        const result = reader.result as string;
+        if (isTemp) {
+          setTempProfilePic(result);
+        } else {
+          setProfilePic(result);
+        }
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      await updateProfile(user, {
+        displayName: tempDisplayName,
+        photoURL: tempProfilePic
+      });
+      setProfilePic(tempProfilePic);
+      setDisplayName(tempDisplayName);
+      setIsProfileModalOpen(false);
+    } catch (err: any) {
+      console.error("Error updating profile:", err);
+      setAuthError("Falha ao atualizar perfil. Tente novamente.");
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -1167,19 +1203,23 @@ export default function App() {
                   <span className="text-[10px] text-gray-500">{user.email}</span>
                 </div>
                 
-                <div className="relative group">
-                  <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-500/20 cursor-pointer hover:border-emerald-500 transition-all">
+                <div 
+                  className="relative group cursor-pointer"
+                  onClick={() => {
+                    setTempDisplayName(displayName);
+                    setTempProfilePic(profilePic);
+                    setIsProfileModalOpen(true);
+                  }}
+                >
+                  <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-500/20 hover:border-emerald-500 transition-all">
                     {profilePic ? (
                       <img src={profilePic} alt="Perfil" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="w-full h-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">
-                        {(user.displayName || user.email || "?")[0].toUpperCase()}
+                        {(displayName || user.email || "?")[0].toUpperCase()}
                       </div>
                     )}
                   </div>
-                  <label className="absolute inset-0 cursor-pointer">
-                    <input type="file" className="hidden" accept="image/*" onChange={handleProfilePicUpload} />
-                  </label>
                 </div>
 
                 <button 
@@ -1557,6 +1597,75 @@ export default function App() {
                 </div>
               )}
             </section>
+          )}
+
+          {/* Profile Modal */}
+          {isProfileModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+              <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl space-y-6 animate-in zoom-in-95 duration-300">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold">Editar Perfil</h3>
+                  <button onClick={() => setIsProfileModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                <form onSubmit={handleSaveProfile} className="space-y-6">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="relative group">
+                      <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-emerald-500/20 shadow-lg">
+                        {tempProfilePic ? (
+                          <img src={tempProfilePic} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-3xl font-bold">
+                            {(tempDisplayName || user?.email || "?")[0].toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <label className="absolute bottom-0 right-0 w-8 h-8 bg-emerald-500 text-white rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-emerald-600 transition-all border-2 border-white">
+                        <ImageIcon size={16} />
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          accept="image/*" 
+                          onChange={(e) => handleProfilePicUpload(e, true)} 
+                        />
+                      </label>
+                    </div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Foto de Perfil</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-gray-400">Nome de Exibição</label>
+                    <input 
+                      type="text" 
+                      value={tempDisplayName}
+                      onChange={(e) => setTempDisplayName(e.target.value)}
+                      placeholder="Seu nome"
+                      className="w-full px-4 py-3 bg-gray-50 border border-black/5 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-gray-400">E-mail (Não editável)</label>
+                    <input 
+                      type="text" 
+                      value={user?.email || ""}
+                      disabled
+                      className="w-full px-4 py-3 bg-gray-100 border border-black/5 rounded-2xl text-gray-500 cursor-not-allowed"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit"
+                    disabled={authLoading || !tempDisplayName.trim()}
+                    className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                  >
+                    {authLoading ? <Loader2 className="animate-spin" size={20} /> : "Salvar Cadastro"}
+                  </button>
+                </form>
+              </div>
+            </div>
           )}
 
           {/* Client Modal */}
