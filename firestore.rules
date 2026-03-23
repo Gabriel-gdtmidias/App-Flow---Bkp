@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: clients
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required, 1-100 chars)
+    //   - createdAt: timestamp (required)
+    //   - uid: string (required, matches owner)
+    //
+    // Collection: histories
+    // Document ID: auto-generated
+    // Fields:
+    //   - clientId: string (required)
+    //   - mode: string (required, enum)
+    //   - content: string (required, max 50000 chars)
+    //   - createdAt: timestamp (required)
+    //   - uid: string (required, matches owner)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && resource != null && request.auth.uid == resource.data.uid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "gabriel@gdtmidias.com" && request.auth.token.email_verified == true);
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+
+    function isValidClient(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.createdAt is timestamp &&
+             data.uid is string && data.uid == request.auth.uid;
+    }
+
+    function isValidHistory(data) {
+      return data.clientId is string &&
+             data.mode in ['communication', 'account_actions', 'group_update', 'client_response'] &&
+             data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
+             data.createdAt is timestamp &&
+             data.uid is string && data.uid == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Test connection path
+    match /test/connection {
+      allow read: if isAuthenticated();
+    }
+
+    match /clients/{clientId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidClient(request.resource.data);
+      allow update: if (isDocOwner() || isAdmin()) && isValidClient(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /histories/{historyId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidHistory(request.resource.data);
+      allow update: if (isDocOwner() || isAdmin()) && isValidHistory(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner() || isAdmin();
+    }
+  }
+}
