@@ -241,24 +241,85 @@ export default function App() {
     communication: "",
     account_actions: "",
     group_update: "",
-    client_response: ""
+    client_response: "",
+    meeting_summary: ""
   });
   const [summaries, setSummaries] = useState<Record<SummaryMode, string | null>>({
     communication: null,
     account_actions: null,
     group_update: null,
-    client_response: null
+    client_response: null,
+    meeting_summary: null
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState<SummaryMode | null>(null);
-  const [image, setImage] = useState<{ data: string; mimeType: string; preview: string } | null>(null);
-  const [audio, setAudio] = useState<{ data: string; mimeType: string; fileName: string } | null>(null);
-  const [pdf, setPdf] = useState<{ data: string; mimeType: string; fileName: string } | null>(null);
+  const [images, setImages] = useState<Record<SummaryMode, { data: string; mimeType: string; preview: string }[]>>({
+    communication: [],
+    account_actions: [],
+    group_update: [],
+    client_response: [],
+    meeting_summary: []
+  });
+  const [audios, setAudios] = useState<Record<SummaryMode, { data: string; mimeType: string; fileName: string } | null>>({
+    communication: null,
+    account_actions: null,
+    group_update: null,
+    client_response: null,
+    meeting_summary: null
+  });
+  const [pdfs, setPdfs] = useState<Record<SummaryMode, { data: string; mimeType: string; fileName: string }[]>>({
+    communication: [],
+    account_actions: [],
+    group_update: [],
+    client_response: [],
+    meeting_summary: []
+  });
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  
+  // Clear inputs when client changes
+  useEffect(() => {
+    setChatTexts({
+      communication: "",
+      account_actions: "",
+      group_update: "",
+      client_response: "",
+      meeting_summary: ""
+    });
+    setSummaries({
+      communication: null,
+      account_actions: null,
+      group_update: null,
+      client_response: null,
+      meeting_summary: null
+    });
+    setImages({
+      communication: [],
+      account_actions: [],
+      group_update: [],
+      client_response: [],
+      meeting_summary: []
+    });
+    setAudios({
+      communication: null,
+      account_actions: null,
+      group_update: null,
+      client_response: null,
+      meeting_summary: null
+    });
+    setPdfs({
+      communication: [],
+      account_actions: [],
+      group_update: [],
+      client_response: [],
+      meeting_summary: []
+    });
+    setMode(null);
+    setError(null);
+  }, [selectedClientId]);
   
   const resultRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -854,26 +915,30 @@ export default function App() {
   };
 
   const handleSummarize = async () => {
-    const currentText = chatTexts[mode];
-    if (!currentText.trim() && !image && !audio) {
-      setError("Por favor, forneça dados (texto, imagem ou áudio) para análise.");
+    const currentText = chatTexts[mode!];
+    const currentImages = images[mode!];
+    const currentAudio = audios[mode!];
+    const currentPdfs = pdfs[mode!];
+
+    if (!currentText.trim() && currentImages.length === 0 && !currentAudio && currentPdfs.length === 0) {
+      setError("Por favor, forneça dados (texto, imagem, áudio ou PDF) para análise.");
       return;
     }
 
     setLoading(true);
     setError(null);
-    setSummaries(prev => ({ ...prev, [mode]: null }));
+    setSummaries(prev => ({ ...prev, [mode!]: null }));
 
     try {
       const result = await summarizeChat(
         currentText, 
-        mode, 
-        image ? { data: image.data, mimeType: image.mimeType } : undefined,
-        audio ? { data: audio.data, mimeType: audio.mimeType } : undefined,
-        pdf ? { data: pdf.data, mimeType: pdf.mimeType } : undefined
+        mode!, 
+        currentImages.length > 0 ? currentImages.map(img => ({ data: img.data, mimeType: img.mimeType })) : undefined,
+        currentAudio ? { data: currentAudio.data, mimeType: currentAudio.mimeType } : undefined,
+        currentPdfs.length > 0 ? currentPdfs.map(pdf => ({ data: pdf.data, mimeType: pdf.mimeType })) : undefined
       );
       const finalResult = result || "Não foi possível gerar um resumo.";
-      setSummaries(prev => ({ ...prev, [mode]: finalResult }));
+      setSummaries(prev => ({ ...prev, [mode!]: finalResult }));
       
       // Auto-save to history if client is selected
       if (selectedClientId && user) {
@@ -897,7 +962,7 @@ export default function App() {
         let plainText = currentSummary;
         
         // WhatsApp uses * for bold instead of **
-        if (mode === "group_update" || mode === "client_response") {
+        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary") {
           plainText = plainText
             .replace(/\*\*(.*?)\*\*/g, '*$1*')
             .replace(/__(.*?)__/g, '*$1*');
@@ -932,12 +997,12 @@ export default function App() {
   };
 
   const handleClear = () => {
-    setChatTexts(prev => ({ ...prev, [mode]: "" }));
-    setSummaries(prev => ({ ...prev, [mode]: null }));
+    setChatTexts(prev => ({ ...prev, [mode!]: "" }));
+    setSummaries(prev => ({ ...prev, [mode!]: null }));
     setError(null);
-    setImage(null);
-    setAudio(null);
-    setPdf(null);
+    setImages(prev => ({ ...prev, [mode!]: [] }));
+    setAudios(prev => ({ ...prev, [mode!]: null }));
+    setPdfs(prev => ({ ...prev, [mode!]: [] }));
   };
 
   const handleClearAll = () => {
@@ -945,44 +1010,67 @@ export default function App() {
       communication: "",
       account_actions: "",
       group_update: "",
-      client_response: ""
+      client_response: "",
+      meeting_summary: ""
     });
     setSummaries({
       communication: null,
       account_actions: null,
       group_update: null,
-      client_response: null
+      client_response: null,
+      meeting_summary: null
     });
     setError(null);
-    setImage(null);
-    setAudio(null);
-    setPdf(null);
+    setImages({
+      communication: [],
+      account_actions: [],
+      group_update: [],
+      client_response: [],
+      meeting_summary: []
+    });
+    setAudios({
+      communication: null,
+      account_actions: null,
+      group_update: null,
+      client_response: null,
+      meeting_summary: null
+    });
+    setPdfs({
+      communication: [],
+      account_actions: [],
+      group_update: [],
+      client_response: [],
+      meeting_summary: []
+    });
   };
 
   const handleNewSummarization = () => {
-    setSummaries(prev => ({ ...prev, [mode]: null }));
-    setChatTexts(prev => ({ ...prev, [mode]: "" }));
+    setSummaries(prev => ({ ...prev, [mode!]: null }));
+    setChatTexts(prev => ({ ...prev, [mode!]: "" }));
     setError(null);
-    setImage(null);
-    setAudio(null);
-    setPdf(null);
+    setImages(prev => ({ ...prev, [mode!]: [] }));
+    setAudios(prev => ({ ...prev, [mode!]: null }));
+    setPdfs(prev => ({ ...prev, [mode!]: [] }));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = (reader.result as string).split(',')[1];
-        setImage({
-          data: base64String,
-          mimeType: file.type,
-          preview: reader.result as string
-        });
+        setImages(prev => ({
+          ...prev,
+          [mode!]: [...prev[mode!], {
+            data: base64String,
+            mimeType: file.type,
+            preview: reader.result as string
+          }]
+        }));
       };
       reader.readAsDataURL(file);
-    }
+    });
   };
 
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -991,19 +1079,22 @@ export default function App() {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = (reader.result as string).split(',')[1];
-        setAudio({
-          data: base64String,
-          mimeType: file.type,
-          fileName: file.name
-        });
+        setAudios(prev => ({
+          ...prev,
+          [mode!]: {
+            data: base64String,
+            mimeType: file.type,
+            fileName: file.name
+          }
+        }));
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => {
       if (file.type !== "application/pdf") {
         setError("Por favor, selecione um arquivo PDF.");
         return;
@@ -1011,14 +1102,17 @@ export default function App() {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = (reader.result as string).split(',')[1];
-        setPdf({
-          data: base64String,
-          mimeType: file.type,
-          fileName: file.name
-        });
+        setPdfs(prev => ({
+          ...prev,
+          [mode!]: [...prev[mode!], {
+            data: base64String,
+            mimeType: file.type,
+            fileName: file.name
+          }]
+        }));
       };
       reader.readAsDataURL(file);
-    }
+    });
   };
 
   // Handle paste for images
@@ -1033,11 +1127,14 @@ export default function App() {
               const reader = new FileReader();
               reader.onloadend = () => {
                 const base64String = (reader.result as string).split(',')[1];
-                setImage({
-                  data: base64String,
-                  mimeType: file.type,
-                  preview: reader.result as string
-                });
+                setImages(prev => ({
+                  ...prev,
+                  [mode!]: [...prev[mode!], {
+                    data: base64String,
+                    mimeType: file.type,
+                    preview: reader.result as string
+                  }]
+                }));
               };
               reader.readAsDataURL(file);
             }
@@ -1048,7 +1145,7 @@ export default function App() {
 
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, []);
+  }, [mode]);
 
   if (!isAuthReady) {
     return (
@@ -1498,10 +1595,11 @@ export default function App() {
                   {/* Categorized History Boxes */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {[
-                      { id: "communication", label: "Comunicados (Monday)", icon: LayoutList, color: "blue" },
-                      { id: "account_actions", label: "Ações da Conta (Monday)", icon: Briefcase, color: "purple" },
+                      { id: "communication", label: "Comunicados", icon: LayoutList, color: "blue" },
+                      { id: "account_actions", label: "Ações da Conta", icon: Briefcase, color: "purple" },
                       { id: "group_update", label: "Atualizações de Grupo", icon: Users, color: "emerald" },
-                      { id: "client_response", label: "Respostas ao Cliente", icon: MessageCircle, color: "orange" }
+                      { id: "client_response", label: "Respostas ao Cliente", icon: MessageCircle, color: "orange" },
+                      { id: "meeting_summary", label: "Resumos de Reunião", icon: Calendar, color: "blue" }
                     ].map(category => {
                       const filtered = getFilteredHistory().filter(h => h.mode === category.id);
                       return (
@@ -1771,6 +1869,15 @@ export default function App() {
                 color: "orange",
                 action: "Responder",
                 extra: "atualizações"
+              },
+              { 
+                id: "meeting_summary", 
+                title: "Resumo de reunião", 
+                description: "Gere um resumo estruturado da transcrição da reunião.", 
+                icon: Calendar, 
+                color: "blue",
+                action: "Resumir",
+                extra: "transcrição"
               }
             ].map((item) => (
               <div 
@@ -1818,12 +1925,14 @@ export default function App() {
                         {mode === "communication" ? <LayoutList size={20} /> :
                          mode === "account_actions" ? <Briefcase size={20} /> :
                          mode === "group_update" ? <Send size={20} /> :
+                         mode === "meeting_summary" ? <Calendar size={20} /> :
                          <MessageCircle size={20} />}
                       </div>
                       <h4 className="font-bold text-lg">
                         {mode === "communication" ? "Comunicado grupo" :
                          mode === "account_actions" ? "Ações da conta" :
                          mode === "group_update" ? "Enviar mensagem" :
+                         mode === "meeting_summary" ? "Resumo de reunião" :
                          "Responder mensagem cliente"}
                       </h4>
                     </div>
@@ -1843,9 +1952,11 @@ export default function App() {
                       <ChevronRight size={14} className="text-emerald-500" />
                       {mode === "client_response" 
                         ? "O que você quer dizer ao cliente? (Texto, Áudio ou PDF)" 
-                        : mode === "account_actions" || mode === "group_update" 
-                          ? "Cole a conversa ou suba arquivos (Print, PDF, Áudio)" 
-                          : "Cole a conversa ou suba arquivos aqui"}
+                        : mode === "meeting_summary"
+                          ? "Cole a transcrição da reunião aqui"
+                          : mode === "account_actions" || mode === "group_update" 
+                            ? "Cole a conversa ou suba arquivos (Print, PDF, Áudio)" 
+                            : "Cole a conversa ou suba arquivos aqui"}
                     </label>
                     
                     <div className="relative">
@@ -1854,9 +1965,11 @@ export default function App() {
                         className="w-full h-64 p-6 bg-[#f9f9f9] rounded-[24px] border-none focus:ring-2 focus:ring-emerald-500/20 resize-none font-mono text-sm leading-relaxed outline-none transition-all"
                         placeholder={mode === "client_response"
                           ? "Ex: O cliente está preocupado com o ROAS. Diga que estamos ajustando os criativos e que o acompanhamento é diário..."
-                          : mode === "account_actions" || mode === "group_update"
-                            ? "Cole o log da conversa ou suba um print/PDF do Meta/Google Ads..." 
-                            : "[10:30, 21/03/2024] João: Vamos marcar a reunião?..."}
+                          : mode === "meeting_summary"
+                            ? "Cole aqui a transcrição completa da reunião..."
+                            : mode === "account_actions" || mode === "group_update"
+                              ? "Cole o log da conversa ou suba um print/PDF do Meta/Google Ads..." 
+                              : "[10:30, 21/03/2024] João: Vamos marcar a reunião?..."}
                         value={chatTexts[mode]}
                         onChange={(e) => setChatTexts(prev => ({ ...prev, [mode]: e.target.value }))}
                       />
@@ -1892,12 +2005,12 @@ export default function App() {
                       <label className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-gray-50 text-gray-600 rounded-2xl text-sm font-bold cursor-pointer hover:bg-gray-100 transition-all border border-black/5">
                         <ImageIcon size={18} />
                         <span>Print</span>
-                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                        <input type="file" className="hidden" accept="image/*" multiple onChange={handleImageUpload} />
                       </label>
                       <label className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-gray-50 text-gray-600 rounded-2xl text-sm font-bold cursor-pointer hover:bg-gray-100 transition-all border border-black/5">
                         <FileText size={18} />
                         <span>PDF</span>
-                        <input type="file" className="hidden" accept="application/pdf" onChange={handlePdfUpload} />
+                        <input type="file" className="hidden" accept="application/pdf" multiple onChange={handlePdfUpload} />
                       </label>
                       <button 
                         onClick={isRecording ? stopRecording : startRecording}
@@ -1915,7 +2028,7 @@ export default function App() {
 
                     <button
                       onClick={handleSummarize}
-                      disabled={loading || (!chatTexts[mode].trim() && !image && !audio && !pdf)}
+                      disabled={loading || (!chatTexts[mode].trim() && images[mode].length === 0 && !audios[mode] && pdfs[mode].length === 0)}
                       className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none"
                     >
                       {loading ? (
@@ -1933,84 +2046,53 @@ export default function App() {
                   </div>
 
                   {/* Upload Previews */}
-                  {(image || audio || pdf) && (
+                  {(images[mode].length > 0 || audios[mode] || pdfs[mode].length > 0) && (
                     <div className="flex flex-wrap gap-4 animate-in fade-in slide-in-from-bottom-2">
-                      {image && (
-                        <div className="relative group">
-                          <img src={image.preview} alt="Upload" className="w-24 h-24 object-cover rounded-2xl border border-black/5 shadow-sm" referrerPolicy="no-referrer" />
-                          <button onClick={() => setImage(null)} className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all">
+                      {images[mode].map((img, idx) => (
+                        <div key={idx} className="relative group">
+                          <img src={img.preview} alt="Upload" className="w-24 h-24 object-cover rounded-2xl border border-black/5 shadow-sm" referrerPolicy="no-referrer" />
+                          <button 
+                            onClick={() => setImages(prev => ({
+                              ...prev,
+                              [mode]: prev[mode].filter((_, i) => i !== idx)
+                            }))} 
+                            className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                          >
                             <X size={12} />
                           </button>
                         </div>
-                      )}
-                      {pdf && (
-                        <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100 relative group">
-                          <FileText size={16} />
-                          <span className="text-xs font-bold max-w-[150px] truncate">{pdf.fileName}</span>
-                          <button onClick={() => setPdf(null)} className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all">
-                            <X size={12} />
-                          </button>
-                        </div>
-                      )}
-                      {audio && (
+                      ))}
+                      {audios[mode] && (
                         <div className="flex items-center gap-3 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-100 relative group">
                           <Mic size={16} />
-                          <span className="text-xs font-bold max-w-[150px] truncate">{audio.fileName}</span>
-                          <button onClick={() => setAudio(null)} className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all">
+                          <span className="text-xs font-bold max-w-[150px] truncate">{audios[mode]!.fileName}</span>
+                          <button 
+                            onClick={() => setAudios(prev => ({ ...prev, [mode]: null }))} 
+                            className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                          >
                             <X size={12} />
                           </button>
                         </div>
                       )}
+                      {pdfs[mode].map((pdf, idx) => (
+                        <div key={idx} className="flex items-center gap-3 px-4 py-2 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100 relative group">
+                          <FileText size={16} />
+                          <span className="text-xs font-bold max-w-[150px] truncate">{pdf.fileName}</span>
+                          <button 
+                            onClick={() => setPdfs(prev => ({
+                              ...prev,
+                              [mode]: prev[mode].filter((_, i) => i !== idx)
+                            }))} 
+                            className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
-
-              {/* Result Area */}
-              {summaries[mode] && (
-                <div className="bg-white rounded-[32px] shadow-sm border border-emerald-100 overflow-hidden animate-in zoom-in-95 duration-500">
-                  <div className="p-8 space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white">
-                          <CheckCircle2 size={18} />
-                        </div>
-                        <h4 className="font-bold text-emerald-900">Resultado Estratégico</h4>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={handleCopy}
-                          className="flex items-center gap-2 px-6 py-2 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold hover:bg-emerald-100 transition-all"
-                        >
-                          {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
-                          {copied ? "Copiado!" : "Copiar"}
-                        </button>
-                        <button
-                          onClick={handleNewSummarization}
-                          className="p-2 text-gray-400 hover:text-gray-600"
-                          title="Nova Atualização"
-                        >
-                          <PlusCircle size={20} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div 
-                      ref={resultRef}
-                      className="prose prose-emerald max-w-none bg-gray-50/50 p-8 rounded-[24px] border border-black/5 text-gray-800 leading-relaxed"
-                    >
-                      <ReactMarkdown>{summaries[mode] || ""}</ReactMarkdown>
-                    </div>
-
-                    {error && (
-                      <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-sm flex items-center gap-2">
-                        <AlertTriangle size={18} />
-                        {error}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -2027,13 +2109,15 @@ export default function App() {
           <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
             <div className="flex items-center justify-between">
               <h3 className="text-2xl font-bold tracking-tight">
-                {mode === "account_actions" 
-                  ? "Ações Específicas da Conta" 
-                  : mode === "group_update"
-                    ? "Enviar mensagem de atualização"
-                    : mode === "client_response"
-                      ? "Responder Mensagem"
-                      : "Comunicado no grupo (Monday)"}
+                    {mode === "account_actions" 
+                      ? "Ações Específicas da Conta" 
+                      : mode === "group_update"
+                        ? "Enviar mensagem de atualização"
+                        : mode === "client_response"
+                          ? "Responder Mensagem"
+                          : mode === "meeting_summary"
+                            ? "Resumo de Reunião"
+                            : "Comunicado no grupo"}
               </h3>
               <div className="flex gap-2">
                 <button 
@@ -2052,17 +2136,21 @@ export default function App() {
                       : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
                   )}
                 >
-                  {copied ? (
-                    <>
-                      <CheckCircle2 size={16} />
-                      Copiado!
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={16} />
-                      {mode === "group_update" || mode === "client_response" ? "Copiar para WhatsApp" : "Copiar para Monday"}
-                    </>
-                  )}
+                      {copied ? (
+                        <>
+                          <CheckCircle2 size={16} />
+                          Copiado!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={16} />
+                          {mode === "group_update" || mode === "client_response" || mode === "meeting_summary"
+                            ? "Copiar para WhatsApp" 
+                            : mode === "communication" 
+                              ? "Copiar comunicado" 
+                              : "Copiar ações realizadas"}
+                        </>
+                      )}
                 </button>
               </div>
             </div>

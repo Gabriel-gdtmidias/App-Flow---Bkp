@@ -2,14 +2,14 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
-export type SummaryMode = "communication" | "account_actions" | "group_update" | "client_response";
+export type SummaryMode = "communication" | "account_actions" | "group_update" | "client_response" | "meeting_summary";
 
 export async function summarizeChat(
   chatText: string, 
   mode: SummaryMode = "communication",
-  imageData?: { data: string; mimeType: string },
+  imagesData?: { data: string; mimeType: string }[],
   audioData?: { data: string; mimeType: string },
-  pdfData?: { data: string; mimeType: string }
+  pdfsData?: { data: string; mimeType: string }[]
 ) {
   const model = "gemini-3-flash-preview";
   
@@ -23,9 +23,9 @@ export async function summarizeChat(
   `;
 
   const fileInstruction = `
-    IMPORTANTE: Se um arquivo (imagem, PDF ou outro) for fornecido, analise cuidadosamente seu conteúdo.
+    IMPORTANTE: Se arquivos (imagens, PDFs ou outros) forem fornecidos, analise cuidadosamente seus conteúdos.
     Extraia informações relevantes, métricas, textos ou dados visuais que complementem o texto fornecido.
-    Se o arquivo contiver prints de campanhas ou relatórios, foque nos KPIs e resultados apresentados.
+    Se os arquivos contiverem prints de campanhas ou relatórios, foque nos KPIs e resultados apresentados.
   `;
 
   const communicationInstruction = `
@@ -47,7 +47,7 @@ export async function summarizeChat(
     Você é um especialista em tráfego pago (Meta Ads e Google Ads) e gestor de contas sênior.
     ${audioInstruction}
     ${fileInstruction}
-    Sua tarefa é analisar o log da conversa, o áudio e/ou os arquivos fornecidos para gerar um relatório de "Ações Específicas da Conta" pronto para o Monday.com.
+    Sua tarefa é analisar o log da conversa, o áudio e/ou os arquivos fornecidos para gerar um relatório de "Ações Específicas da Conta".
     
     ESTRATÉGIA:
     - Se o input for uma sugestão sobre **quando** enviar relatórios ou executar ações, incorpore isso como uma recomendação estratégica no relatório.
@@ -76,7 +76,7 @@ export async function summarizeChat(
     
     **OTIMIZAÇÕES E MELHORIAS**
     - [O que foi feito para melhorar]
-  `;
+    `;
 
   const groupUpdateInstruction = `
     Você é um gestor de tráfego sênior e parceiro estratégico.
@@ -124,19 +124,44 @@ export async function summarizeChat(
     4. **Fechamento cordial**.
   `;
 
-  let systemInstruction = communicationInstruction;
-  if (mode === "account_actions") systemInstruction = accountActionsInstruction;
-  if (mode === "group_update") systemInstruction = groupUpdateInstruction;
-  if (mode === "client_response") systemInstruction = clientResponseInstruction;
+  const meetingSummaryInstruction = `
+    Você é um assistente executivo e gestor de projetos sênior.
+    Sua tarefa é analisar a transcrição de uma reunião fornecida e gerar um resumo estruturado e profissional para ser enviado ao cliente.
+    
+    ESTRUTURA OBRIGATÓRIA:
+    1. **Data da Reunião**: Extraia a data da transcrição se disponível, caso contrário, use a data atual (${new Date().toLocaleDateString('pt-BR')}).
+    2. **Principais Pontos Discutidos**: Liste em tópicos os assuntos mais importantes que foram abordados durante a reunião.
+    3. **Tarefas Combinadas (Action Items)**: Liste em tópicos claros e objetivos todas as tarefas, prazos e responsáveis que foram definidos.
+    
+    DIRETRIZES:
+    - **Clareza e Objetividade**: O resumo deve ser fácil de ler e direto ao ponto.
+    - **Tom Profissional**: Use uma linguagem executiva, polida e organizada.
+    - **Foco no Cliente**: O conteúdo deve ser preparado pensando no que é relevante para o cliente saber e acompanhar.
+    - **Sem Emojis**: Não utilize emoticons ou emojis.
+    
+    Formate a saída em Markdown elegante. Use negrito para destacar pontos cruciais e nomes de responsáveis.
+  `;
+
+  const modeInstructions: Record<SummaryMode, string> = {
+    communication: communicationInstruction,
+    account_actions: accountActionsInstruction,
+    group_update: groupUpdateInstruction,
+    client_response: clientResponseInstruction,
+    meeting_summary: meetingSummaryInstruction
+  };
+
+  const systemInstruction = modeInstructions[mode];
 
   const parts: any[] = [{ text: chatText || "Analise os arquivos anexos para gerar o relatório/resumo." }];
   
-  if (imageData) {
-    parts.push({
-      inlineData: {
-        data: imageData.data,
-        mimeType: imageData.mimeType,
-      },
+  if (imagesData && imagesData.length > 0) {
+    imagesData.forEach(img => {
+      parts.push({
+        inlineData: {
+          data: img.data,
+          mimeType: img.mimeType,
+        },
+      });
     });
   }
 
@@ -149,12 +174,14 @@ export async function summarizeChat(
     });
   }
 
-  if (pdfData) {
-    parts.push({
-      inlineData: {
-        data: pdfData.data,
-        mimeType: pdfData.mimeType,
-      },
+  if (pdfsData && pdfsData.length > 0) {
+    pdfsData.forEach(pdf => {
+      parts.push({
+        inlineData: {
+          data: pdf.data,
+          mimeType: pdf.mimeType,
+        },
+      });
     });
   }
 
@@ -218,8 +245,8 @@ export async function summarizeHistory(
     ESTRUTURA OBRIGATÓRIA DO RELATÓRIO:
     1. **Período Analisado**: Mencione claramente o período: ${period}.
     2. **Resumo por Etapas**:
-       - **Comunicados (Monday)**: Se houver, resuma os principais comunicados. Se não houver, mencione "Sem comunicados no período".
-       - **Ações na Conta (Monday)**: Se houver, resuma as ações executadas. Se não houver, mencione "Sem ações registradas na conta".
+       - **Comunicados**: Se houver, resuma os principais comunicados. Se não houver, mencione "Sem comunicados no período".
+       - **Ações na Conta**: Se houver, resuma as ações executadas. Se não houver, mencione "Sem ações registradas na conta".
        - **Atualizações do Grupo**: Se houver, resuma as atualizações enviadas. Se não houver, mencione "Sem atualizações de grupo".
        - **Respostas ao Cliente**: Se houver, resuma as respostas enviadas ou pendentes. Se não houver, mencione "Sem respostas registradas".
     3. **Conclusão Estratégica**: Um parágrafo final sobre a saúde da conta e próximos passos baseados no histórico.
