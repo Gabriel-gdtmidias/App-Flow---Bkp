@@ -1,5 +1,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from "recharts";
+import { 
   MessageSquareText, 
   Sparkles, 
   Copy, 
@@ -30,7 +43,8 @@ import {
   Search,
   FileText,
   Paperclip,
-  Edit2
+  Edit2,
+  BarChart3
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { jsPDF } from "jspdf";
@@ -197,6 +211,11 @@ export default function App() {
   const [editingClientId, setEditingClientId] = useState("");
   const [editingClientName, setEditingClientName] = useState("");
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const [dashboardDateFilter, setDashboardDateFilter] = useState<DateFilterType>("current_month");
+  const [dashboardCustomStart, setDashboardCustomStart] = useState<string>("");
+  const [dashboardCustomEnd, setDashboardCustomEnd] = useState<string>("");
+  const [allHistories, setAllHistories] = useState<HistoryRecord[]>([]);
   const [historySummary, setHistorySummary] = useState<string | null>(null);
   const [groupMessage, setGroupMessage] = useState<string | null>(null);
   const [isSummarizingHistory, setIsSummarizingHistory] = useState(false);
@@ -216,7 +235,7 @@ export default function App() {
     type: 'warning'
   });
   
-  type DateFilterType = "all" | "today" | "yesterday" | "7days" | "30days" | "custom" | "specific";
+  type DateFilterType = "all" | "today" | "yesterday" | "7days" | "30days" | "custom" | "specific" | "current_month";
   const [historyDateFilter, setHistoryDateFilter] = useState<DateFilterType>("all");
   const [specificDate, setSpecificDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [customStartDate, setCustomStartDate] = useState<string>("");
@@ -424,6 +443,82 @@ export default function App() {
 
     return () => unsubscribe();
   }, [user, selectedClientId]);
+
+  // Fetch ALL Histories for Metrics
+  useEffect(() => {
+    if (!user) {
+      setAllHistories([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, "histories"),
+      where("uid", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
+
+    const path = "histories";
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const historyData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as HistoryRecord[];
+      setAllHistories(historyData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Filtered Histories for Dashboard
+  const filteredDashboardHistories = allHistories.filter(history => {
+    if (dashboardDateFilter === "all") return true;
+    
+    const historyDate = history.createdAt?.toDate ? history.createdAt.toDate() : new Date(history.createdAt);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    if (dashboardDateFilter === "today") {
+      return historyDate >= today;
+    }
+    
+    if (dashboardDateFilter === "yesterday") {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return historyDate >= yesterday && historyDate < today;
+    }
+    
+    if (dashboardDateFilter === "7days") {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const sevenDaysAgo = new Date(yesterday);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 7 days including yesterday
+      return historyDate >= sevenDaysAgo && historyDate < today;
+    }
+    
+    if (dashboardDateFilter === "30days") {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const thirtyDaysAgo = new Date(yesterday);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29); // 30 days including yesterday
+      return historyDate >= thirtyDaysAgo && historyDate < today;
+    }
+
+    if (dashboardDateFilter === "current_month") {
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return historyDate >= firstDayOfMonth;
+    }
+    
+    if (dashboardDateFilter === "custom" && dashboardCustomStart && dashboardCustomEnd) {
+      const start = new Date(dashboardCustomStart);
+      const end = new Date(dashboardCustomEnd);
+      end.setHours(23, 59, 59, 999);
+      return historyDate >= start && historyDate <= end;
+    }
+    
+    return true;
+  });
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1357,6 +1452,14 @@ export default function App() {
                 </div>
 
                 <button 
+                  onClick={() => setIsDashboardOpen(true)}
+                  className="p-2 text-gray-400 hover:text-emerald-500 transition-colors"
+                  title="Painel de Métricas"
+                >
+                  <BarChart3 size={20} />
+                </button>
+
+                <button 
                   onClick={handleLogout}
                   className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                   title="Sair"
@@ -1379,6 +1482,213 @@ export default function App() {
               Transforme conversas, áudios e prints de Ads em atualizações profissionais e respostas estratégicas para seus clientes.
             </p>
           </section>
+
+          {/* Dashboard Section */}
+          {isDashboardOpen && (
+            <section className="bg-white rounded-[40px] p-8 shadow-xl border border-black/5 space-y-8 animate-in zoom-in-95 duration-500">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
+                    <BarChart3 size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">Painel de Métricas</h3>
+                    <p className="text-sm text-gray-500">Visão geral da demanda por cliente e categoria.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center bg-gray-50 p-1 rounded-2xl border border-black/5">
+                    {[
+                      { id: "all", label: "Tudo" },
+                      { id: "current_month", label: "Mês atual" },
+                      { id: "today", label: "Hoje" },
+                      { id: "yesterday", label: "Ontem" },
+                      { id: "7days", label: "Últimos 7 dias" },
+                      { id: "30days", label: "Últimos 30 dias" },
+                      { id: "custom", label: "Personalizado" }
+                    ].map((filter) => (
+                      <button
+                        key={filter.id}
+                        onClick={() => setDashboardDateFilter(filter.id as DateFilterType)}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                          dashboardDateFilter === filter.id 
+                            ? "bg-white text-emerald-600 shadow-sm" 
+                            : "text-gray-500 hover:text-gray-700"
+                        )}
+                      >
+                        {filter.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button 
+                    onClick={() => setIsDashboardOpen(false)}
+                    className="p-2 text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 rounded-xl"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {dashboardDateFilter === "custom" && (
+                <div className="flex items-center gap-4 p-6 bg-gray-50 rounded-[24px] border border-black/5 animate-in slide-in-from-top-2">
+                  <div className="flex-1 space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Data Inicial</label>
+                    <input 
+                      type="date" 
+                      value={dashboardCustomStart}
+                      onChange={(e) => setDashboardCustomStart(e.target.value)}
+                      className="w-full bg-white border border-black/5 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Data Final</label>
+                    <input 
+                      type="date" 
+                      value={dashboardCustomEnd}
+                      onChange={(e) => setDashboardCustomEnd(e.target.value)}
+                      className="w-full bg-white border border-black/5 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Demand by Client */}
+                <div className="bg-gray-50 rounded-[32px] p-8 space-y-6">
+                  <h4 className="font-bold text-lg flex items-center gap-2">
+                    <Users size={20} className="text-emerald-500" />
+                    Demanda por Cliente
+                  </h4>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={clients.map(client => ({
+                          name: client.name,
+                          total: filteredDashboardHistories.filter(h => h.clientId === client.id).length
+                        })).sort((a, b) => b.total - a.total).slice(0, 5)}
+                        layout="vertical"
+                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e5e5" />
+                        <XAxis type="number" hide />
+                        <YAxis 
+                          dataKey="name" 
+                          type="category" 
+                          width={100} 
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 12, fontWeight: 600, fill: '#4b5563' }}
+                        />
+                        <Tooltip 
+                          cursor={{ fill: 'transparent' }}
+                          contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Bar dataKey="total" fill="#10b981" radius={[0, 8, 8, 0]} barSize={20} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Demand by Category */}
+                <div className="bg-gray-50 rounded-[32px] p-8 space-y-6">
+                  <h4 className="font-bold text-lg flex items-center gap-2">
+                    <LayoutList size={20} className="text-blue-500" />
+                    Demanda por Categoria
+                  </h4>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Comunicados', value: filteredDashboardHistories.filter(h => h.mode === 'communication').length, color: '#10b981' },
+                            { name: 'Ações Conta', value: filteredDashboardHistories.filter(h => h.mode === 'account_actions').length, color: '#3b82f6' },
+                            { name: 'Atualizações', value: filteredDashboardHistories.filter(h => h.mode === 'group_update').length, color: '#8b5cf6' },
+                            { name: 'Respostas', value: filteredDashboardHistories.filter(h => h.mode === 'client_response').length, color: '#f59e0b' },
+                            { name: 'Reuniões', value: filteredDashboardHistories.filter(h => h.mode === 'meeting_summary').length, color: '#6366f1' },
+                          ].filter(d => d.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {[
+                            { color: '#10b981' },
+                            { color: '#3b82f6' },
+                            { color: '#8b5cf6' },
+                            { color: '#f59e0b' },
+                            { color: '#6366f1' },
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Detailed Table */}
+              <div className="bg-gray-50 rounded-[32px] p-8 space-y-6">
+                <h4 className="font-bold text-lg flex items-center gap-2">
+                  <Search size={20} className="text-purple-500" />
+                  Detalhamento por Cliente
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-200">
+                        <th className="pb-4 pl-4">Cliente</th>
+                        <th className="pb-4 text-center">Comunicados</th>
+                        <th className="pb-4 text-center">Ações Conta</th>
+                        <th className="pb-4 text-center">Atualizações</th>
+                        <th className="pb-4 text-center">Respostas</th>
+                        <th className="pb-4 text-center">Reuniões</th>
+                        <th className="pb-4 text-right pr-4">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {clients.map(client => {
+                        const clientHist = filteredDashboardHistories.filter(h => h.clientId === client.id);
+                        const counts = {
+                          communication: clientHist.filter(h => h.mode === 'communication').length,
+                          account_actions: clientHist.filter(h => h.mode === 'account_actions').length,
+                          group_update: clientHist.filter(h => h.mode === 'group_update').length,
+                          client_response: clientHist.filter(h => h.mode === 'client_response').length,
+                          meeting_summary: clientHist.filter(h => h.mode === 'meeting_summary').length,
+                          total: clientHist.length
+                        };
+                        
+                        if (counts.total === 0) return null;
+
+                        return (
+                          <tr key={client.id} className="text-sm hover:bg-white/50 transition-colors group">
+                            <td className="py-4 pl-4 font-bold text-gray-900">{client.name}</td>
+                            <td className="py-4 text-center text-gray-600">{counts.communication}</td>
+                            <td className="py-4 text-center text-gray-600">{counts.account_actions}</td>
+                            <td className="py-4 text-center text-gray-600">{counts.group_update}</td>
+                            <td className="py-4 text-center text-gray-600">{counts.client_response}</td>
+                            <td className="py-4 text-center text-gray-600">{counts.meeting_summary}</td>
+                            <td className="py-4 text-right pr-4">
+                              <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-bold text-xs">
+                                {counts.total}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      }).filter(Boolean)}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Client Selection & Management */}
           {user && (
