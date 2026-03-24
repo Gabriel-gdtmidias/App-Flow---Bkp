@@ -32,7 +32,7 @@
         },
         "mode": {
           "type": "string",
-          "enum": ["communication", "account_actions", "group_update", "client_response"],
+          "enum": ["communication", "account_actions", "group_update", "client_response", "meeting_summary"],
           "description": "The type of summary generated."
         },
         "content": {

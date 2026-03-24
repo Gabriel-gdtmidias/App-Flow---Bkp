@@ -812,7 +812,13 @@ export default function App() {
     
     const title = modeToClear ? "Limpar Categoria" : "Limpar Histórico";
     const message = modeToClear 
-      ? `Tem certeza que deseja apagar todo o histórico de ${modeToClear === "communication" ? "Comunicados" : modeToClear === "account_actions" ? "Ações da Conta" : modeToClear === "group_update" ? "Atualizações" : "Respostas"} deste cliente?`
+      ? `Tem certeza que deseja apagar todo o histórico de ${
+          modeToClear === "communication" ? "Comunicados" : 
+          modeToClear === "account_actions" ? "Ações da Conta" : 
+          modeToClear === "group_update" ? "Atualizações" : 
+          modeToClear === "client_response" ? "Respostas" : 
+          "Resumos de Reunião"
+        } deste cliente?`
       : "Tem certeza que deseja apagar TODO o histórico deste cliente? Esta ação não pode ser desfeita.";
 
     setConfirmModal({
@@ -984,7 +990,7 @@ export default function App() {
       } catch (err) {
         console.error("Rich copy failed, falling back to text:", err);
         let plainText = currentSummary;
-        if (mode === "group_update" || mode === "client_response") {
+        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary") {
           plainText = plainText
             .replace(/\*\*(.*?)\*\*/g, '*$1*')
             .replace(/__(.*?)__/g, '*$1*');
@@ -1076,9 +1082,12 @@ export default function App() {
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setIsTranscribing(true);
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const base64String = (reader.result as string).split(',')[1];
+        
+        // Save audio data
         setAudios(prev => ({
           ...prev,
           [mode!]: {
@@ -1087,6 +1096,34 @@ export default function App() {
             fileName: file.name
           }
         }));
+
+        // Transcribe
+        try {
+          const transcription = await transcribeAudio({
+            data: base64String,
+            mimeType: file.type
+          });
+          
+          if (transcription) {
+            setChatTexts(prev => {
+              const currentText = prev[mode!];
+              const separator = currentText.trim() ? "\n\n" : "";
+              return {
+                ...prev,
+                [mode!]: currentText + separator + transcription
+              };
+            });
+          }
+        } catch (err) {
+          console.error("Transcription error:", err);
+          setError("Falha ao transcrever o áudio anexado. Tente novamente.");
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+      reader.onerror = () => {
+        setIsTranscribing(false);
+        setError("Erro ao processar o áudio anexado.");
       };
       reader.readAsDataURL(file);
     }
@@ -2012,6 +2049,11 @@ export default function App() {
                         <span>PDF</span>
                         <input type="file" className="hidden" accept="application/pdf" multiple onChange={handlePdfUpload} />
                       </label>
+                      <label className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-gray-50 text-gray-600 rounded-2xl text-sm font-bold cursor-pointer hover:bg-gray-100 transition-all border border-black/5">
+                        <Paperclip size={18} />
+                        <span>Anexar Áudio</span>
+                        <input type="file" className="hidden" accept="audio/*" onChange={handleAudioUpload} />
+                      </label>
                       <button 
                         onClick={isRecording ? stopRecording : startRecording}
                         className={cn(
@@ -2022,7 +2064,7 @@ export default function App() {
                         )}
                       >
                         {isRecording ? <Square size={18} /> : <Mic size={18} />}
-                        <span>{isRecording ? "Parar" : "Áudio"}</span>
+                        <span>{isRecording ? "Parar" : "Gravar Áudio"}</span>
                       </button>
                     </div>
 
