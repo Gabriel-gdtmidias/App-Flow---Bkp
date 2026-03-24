@@ -1427,6 +1427,15 @@ export default function App() {
             
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setIsDashboardOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 hover:bg-emerald-100 transition-all shadow-sm group"
+                  title="Painel de Métricas"
+                >
+                  <BarChart3 size={18} className="group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold hidden md:block">Métricas</span>
+                </button>
+
                 <div className="flex flex-col items-end hidden sm:flex">
                   <span className="text-sm font-bold">{user.displayName || user.email?.split('@')[0]}</span>
                   <span className="text-[10px] text-gray-500">{user.email}</span>
@@ -1450,14 +1459,6 @@ export default function App() {
                     )}
                   </div>
                 </div>
-
-                <button 
-                  onClick={() => setIsDashboardOpen(true)}
-                  className="p-2 text-gray-400 hover:text-emerald-500 transition-colors"
-                  title="Painel de Métricas"
-                >
-                  <BarChart3 size={20} />
-                </button>
 
                 <button 
                   onClick={handleLogout}
