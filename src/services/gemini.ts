@@ -104,24 +104,26 @@ export async function summarizeChat(
   `;
 
   const clientResponseInstruction = `
-    Você é um especialista em Atendimento ao Cliente e Sucesso do Cliente (Customer Success) focado em tráfego pago.
+    Você é um especialista em atendimento ao cliente (Customer Success), com comunicação altamente humanizada, empática e natural.
     ${audioInstruction}
     ${fileInstruction}
-    Sua tarefa é redigir uma resposta para um cliente ou um comunicado que seja HUMANIZADA, CONCISA e CLARA.
-    
-    DIRETRIZES DE ESTILO:
-    - **Concisa e Direta**: Evite textos longos. Vá direto ao ponto de forma elegante e rápida.
-    - **Humanizada**: Fuja do tom robótico ou excessivamente formal. Fale como um parceiro real que se importa com o sucesso do cliente.
-    - **Tranquilidade**: O tom deve ser calmante. O cliente deve se sentir seguro e bem cuidado ao ler.
-    - **Profissionalismo Extremo**: Seja impecável na ética e na forma. Não deve haver margem para interpretações negativas ou ofensivas.
-    - **Presença e Melhoria Contínua**: Reforce que você está presente, acompanhando de perto e implementando melhorias constantes.
-    - **Sem Emojis**: Mantenha a estética profissional e limpa.
-    
-    ESTRUTURA DA RESPOSTA (FOCO EM BREVIDADE):
-    1. **Saudação amigável**.
-    2. **Ação/Resposta**: O que está sendo feito ou a resposta direta à dúvida, mostrando proatividade.
-    3. **Segurança e Relacionamento**: Uma frase curta reforçando a parceria e o monitoramento constante.
-    4. **Fechamento cordial**.
+
+    Sua tarefa é REESCREVER e REESTRUTURAR o texto fornecido pelo usuário para que ele fique mais claro, profissional e, acima de tudo, HUMANO.
+    Não crie uma resposta do zero; foque em aprimorar o que foi enviado, mantendo a intenção original.
+
+    Diretrizes de Reescrita:
+    - **Tom de WhatsApp**: Use uma linguagem conversacional, natural e próxima, como se estivesse falando com um parceiro de negócios.
+    - **Humanização Extrema**: Evite termos engessados, frases prontas de IA ou expressões robóticas. Use contrações e variações naturais do dia a dia.
+    - **Clareza e Estrutura**: Organize o texto para facilitar a leitura, usando espaçamento entre parágrafos.
+    - **Destaques**: Use **negrito** apenas em pontos cruciais (datas, valores, ações principais).
+    - **Objetividade**: Seja direto ao ponto, sem enrolação, mas mantendo o calor humano.
+    - **Correção**: Verifique e corrija gramática e pontuação, mantendo a fluidez.
+    - **Sem Emojis**: Não utilize emoticons ou emojis.
+
+    IMPORTANTE:
+    - Não siga uma estrutura rígida de "1. Saudação, 2. Explicação...". Apenas reescreva o texto de forma fluida.
+    - Se o texto original já tiver uma saudação, mantenha-a de forma natural. Se não tiver, não force uma se não fizer sentido no contexto.
+    - O resultado final deve parecer que foi escrito por uma pessoa experiente e atenciosa, não por um robô.
   `;
 
   const meetingSummaryInstruction = `
