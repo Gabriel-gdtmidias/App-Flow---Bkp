@@ -57,82 +57,13 @@ import {
   type SummaryMode 
 } from "./services/gemini";
 import { cn } from "./lib/utils";
-import { auth, db } from "./firebase";
-import { 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  signOut,
-  signInWithPopup,
-  GoogleAuthProvider,
-  type User
-} from "firebase/auth";
-import { 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  query, 
-  where, 
-  orderBy, 
-  deleteDoc, 
-  doc, 
-  serverTimestamp,
-  getDocFromServer,
-  getDoc,
-  setDoc,
-  updateDoc
-} from "firebase/firestore";
+import { supabase, type Client as DbClient, type History as DbHistory } from "./lib/supabase";
+import type { User, Session } from "@supabase/supabase-js";
 
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+function handleSupabaseError(error: unknown, operation: string) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`Supabase Error [${operation}]:`, message);
+  throw new Error(message);
 }
 
 // Error Boundary Component
@@ -176,17 +107,17 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 interface Client {
   id: string;
   name: string;
-  createdAt: any;
-  uid: string;
+  created_at: string;
+  user_id: string;
 }
 
 interface HistoryRecord {
   id: string;
-  clientId: string;
+  client_id: string;
   mode: SummaryMode;
   content: string;
-  createdAt: any;
-  uid: string;
+  created_at: string;
+  user_id: string;
 }
 
 export default function App() {
@@ -376,44 +307,32 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      if (user) {
-        setProfilePic(user.photoURL);
-        setDisplayName(user.displayName || "");
-      } else {
-        setProfilePic(null);
-        setDisplayName("");
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          setProfilePic(session.user.user_metadata?.avatar_url || null);
+          setDisplayName(session.user.user_metadata?.display_name || session.user.user_metadata?.full_name || "");
+        } else {
+          setProfilePic(null);
+          setDisplayName("");
+        }
+        setIsAuthReady(true);
+      }
+    );
+
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        setProfilePic(session.user.user_metadata?.avatar_url || null);
+        setDisplayName(session.user.user_metadata?.display_name || session.user.user_metadata?.full_name || "");
       }
       setIsAuthReady(true);
     });
-    return () => unsubscribe();
-  }, []);
 
-  // Test Connection
-  useEffect(() => {
-    if (isAuthReady && user) {
-      const testConnection = async () => {
-        const path = 'test/connection';
-        try {
-          await getDocFromServer(doc(db, 'test', 'connection'));
-        } catch (error) {
-          if (error instanceof Error && error.message.includes('the client is offline')) {
-            console.error("Please check your Firebase configuration.");
-          } else if (error instanceof Error && error.message.includes('permission-denied')) {
-            // Silently handle permission denied for test connection if needed, 
-            // but we'll use the handler to be safe
-            try {
-              handleFirestoreError(error, OperationType.GET, path);
-            } catch (e) {
-              // Just log, don't crash the whole app for a connection test
-            }
-          }
-        }
-      };
-      testConnection();
-    }
-  }, [isAuthReady, user]);
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Fetch Clients
   useEffect(() => {
@@ -422,26 +341,37 @@ export default function App() {
       return;
     }
 
-    const q = query(
-      collection(db, "clients"),
-      where("uid", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
+    const fetchClients = async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        handleSupabaseError(error, 'fetch clients');
+        return;
+      }
+      setClients(data || []);
+    };
 
-    const path = "clients";
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const clientsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Client[];
-      setClients(clientsData);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
+    fetchClients();
 
-    return () => unsubscribe();
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel('clients-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'clients', filter: `user_id=eq.${user.id}` },
+        () => fetchClients()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
+  // Fetch History for selected client
   // Fetch History for selected client
   useEffect(() => {
     if (!user || !selectedClientId) {
@@ -449,25 +379,34 @@ export default function App() {
       return;
     }
 
-    const q = query(
-      collection(db, "histories"),
-      where("clientId", "==", selectedClientId),
-      where("uid", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
+    const fetchHistories = async () => {
+      const { data, error } = await supabase
+        .from('histories')
+        .select('*')
+        .eq('client_id', selectedClientId)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        handleSupabaseError(error, 'fetch histories');
+        return;
+      }
+      setClientHistories(data || []);
+    };
 
-    const path = "histories";
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const historyData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as HistoryRecord[];
-      setClientHistories(historyData);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
+    fetchHistories();
 
-    return () => unsubscribe();
+    const channel = supabase
+      .channel(`histories-${selectedClientId}`)
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'histories', filter: `client_id=eq.${selectedClientId}` },
+        () => fetchHistories()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, selectedClientId]);
 
   // Fetch ALL Histories for Metrics
@@ -477,34 +416,43 @@ export default function App() {
       return;
     }
 
-    const q = query(
-      collection(db, "histories"),
-      where("uid", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
+    const fetchAllHistories = async () => {
+      const { data, error } = await supabase
+        .from('histories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        handleSupabaseError(error, 'fetch all histories');
+        return;
+      }
+      setAllHistories(data || []);
+    };
 
-    const path = "histories";
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const historyData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as HistoryRecord[];
-      setAllHistories(historyData);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
+    fetchAllHistories();
 
-    return () => unsubscribe();
+    const channel = supabase
+      .channel('all-histories')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'histories', filter: `user_id=eq.${user.id}` },
+        () => fetchAllHistories()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   // Filtered Histories for Dashboard
   const filteredDashboardHistories = allHistories.filter(history => {
     // Client filter
-    if (dashboardClientFilter && history.clientId !== dashboardClientFilter) return false;
+    if (dashboardClientFilter && history.client_id !== dashboardClientFilter) return false;
 
     if (dashboardDateFilter === "all") return true;
     
-    const historyDate = history.createdAt?.toDate ? history.createdAt.toDate() : new Date(history.createdAt);
+    const historyDate = new Date(history.created_at);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
@@ -551,10 +499,14 @@ export default function App() {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
     } catch (err: any) {
       console.error("Login error:", err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      if (err.message?.includes('Invalid login credentials')) {
         setAuthError("E-mail ou senha incorretos. Verifique seus dados ou crie uma conta se ainda não tiver uma.");
       } else {
         setAuthError("Falha ao entrar. Verifique sua conexão ou tente novamente mais tarde.");
@@ -570,14 +522,21 @@ export default function App() {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(userCredential.user, { displayName });
-      // setUser will be updated by onAuthStateChanged
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            display_name: displayName,
+          },
+        },
+      });
+      if (error) throw error;
     } catch (err: any) {
       console.error("Registration error:", err);
-      if (err.code === 'auth/email-already-in-use') {
+      if (err.message?.includes('already registered')) {
         setAuthError("Este e-mail já está em uso.");
-      } else if (err.code === 'auth/weak-password') {
+      } else if (err.message?.includes('password')) {
         setAuthError("A senha deve ter pelo menos 6 caracteres.");
       } else {
         setAuthError("Falha ao criar conta. Tente novamente.");
@@ -591,8 +550,13 @@ export default function App() {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) throw error;
     } catch (err: any) {
       console.error("Google login error:", err);
       setAuthError("Falha ao entrar com Google. Tente novamente.");
@@ -623,10 +587,13 @@ export default function App() {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      await updateProfile(user, {
-        displayName: tempDisplayName,
-        photoURL: tempProfilePic
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          display_name: tempDisplayName,
+          avatar_url: tempProfilePic,
+        },
       });
+      if (error) throw error;
       setProfilePic(tempProfilePic);
       setDisplayName(tempDisplayName);
       setIsProfileModalOpen(false);
@@ -640,7 +607,7 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
       setSelectedClientId("");
     } catch (err) {
       console.error("Logout error:", err);
@@ -651,17 +618,18 @@ export default function App() {
     e.preventDefault();
     if (!user || !newClientName.trim()) return;
 
-    const path = "clients";
     try {
-      await addDoc(collection(db, path), {
-        name: newClientName.trim(),
-        createdAt: serverTimestamp(),
-        uid: user.uid
-      });
+      const { error } = await supabase
+        .from('clients')
+        .insert({
+          name: newClientName.trim(),
+          user_id: user.id,
+        });
+      if (error) throw error;
       setNewClientName("");
       setIsClientModalOpen(false);
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, path);
+      handleSupabaseError(err, 'add client');
     }
   };
 
@@ -669,16 +637,17 @@ export default function App() {
     e.preventDefault();
     if (!user || !editingClientId || !editingClientName.trim()) return;
 
-    const path = `clients/${editingClientId}`;
     try {
-      await updateDoc(doc(db, "clients", editingClientId), {
-        name: editingClientName.trim()
-      });
+      const { error } = await supabase
+        .from('clients')
+        .update({ name: editingClientName.trim() })
+        .eq('id', editingClientId);
+      if (error) throw error;
       setIsEditingClient(false);
       setEditingClientId("");
       setEditingClientName("");
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, path);
+      handleSupabaseError(err, 'edit client');
     }
   };
 
@@ -710,12 +679,15 @@ export default function App() {
       message: "Tem certeza que deseja remover este cliente e TODO o seu histórico? Esta ação não pode ser desfeita.",
       type: 'danger',
       onConfirm: async () => {
-        const path = `clients/${clientId}`;
         try {
-          await deleteDoc(doc(db, "clients", clientId));
+          const { error } = await supabase
+            .from('clients')
+            .delete()
+            .eq('id', clientId);
+          if (error) throw error;
           if (selectedClientId === clientId) setSelectedClientId("");
         } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, path);
+          handleSupabaseError(err, 'delete client');
         }
       }
     });
@@ -724,7 +696,6 @@ export default function App() {
   const saveToHistory = async (content: string) => {
     if (!user || !selectedClientId) return;
 
-    const path = "histories";
     let finalMode = mode;
     let finalContent = content;
 
@@ -737,15 +708,17 @@ export default function App() {
     }
 
     try {
-      await addDoc(collection(db, path), {
-        clientId: selectedClientId,
-        mode: finalMode,
-        content: finalContent,
-        createdAt: serverTimestamp(),
-        uid: user.uid
-      });
+      const { error } = await supabase
+        .from('histories')
+        .insert({
+          client_id: selectedClientId,
+          mode: finalMode,
+          content: finalContent,
+          user_id: user.id,
+        });
+      if (error) throw error;
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, path);
+      handleSupabaseError(err, 'save history');
     }
   };
 
@@ -774,7 +747,7 @@ export default function App() {
       const records = filteredHistory.map(h => ({
         mode: h.mode,
         content: h.content,
-        createdAt: h.createdAt?.toDate().toLocaleString('pt-BR') || ""
+        createdAt: new Date(h.created_at).toLocaleString('pt-BR')
       }));
 
       const summary = await summarizeHistory(records, periodText);
@@ -928,7 +901,7 @@ export default function App() {
     }
 
     return records.filter(h => {
-      const date = h.createdAt?.toDate ? h.createdAt.toDate() : new Date(h.createdAt);
+      const date = new Date(h.created_at);
       if (!date) return false;
       if (startDate && date < startDate) return false;
       if (endDate && date > endDate) return false;
@@ -958,9 +931,12 @@ export default function App() {
       onConfirm: async () => {
         try {
           const historiesToDelete = clientHistories.filter(h => !modeToClear || h.mode === modeToClear);
-          for (const h of historiesToDelete) {
-            await deleteDoc(doc(db, "histories", h.id));
-          }
+          const ids = historiesToDelete.map(h => h.id);
+          const { error } = await supabase
+            .from('histories')
+            .delete()
+            .in('id', ids);
+          if (error) throw error;
         } catch (err) {
           console.error("Error clearing history:", err);
           setError("Erro ao limpar histórico.");
@@ -1324,10 +1300,10 @@ export default function App() {
   if (isThreadView && threadMode && threadClientId) {
     const client = clients.find(c => c.id === threadClientId);
     const filteredHistory = allHistories
-      .filter(h => h.clientId === threadClientId && h.mode === threadMode)
+      .filter(h => h.client_id === threadClientId && h.mode === threadMode)
       .sort((a, b) => {
-        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
-        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+const dateA = new Date(a.created_at);
+      const dateB = new Date(b.created_at);
         return dateB.getTime() - dateA.getTime();
       });
 
@@ -1362,7 +1338,7 @@ export default function App() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                     <Calendar size={12} />
-                    {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleString('pt-BR') : new Date(item.createdAt).toLocaleString('pt-BR')}
+                    {new Date(item.created_at).toLocaleString('pt-BR')}
                   </div>
                   <div className="bg-gray-50 rounded-2xl p-6 border border-black/5 prose prose-sm max-w-none text-gray-700">
                     <ReactMarkdown>{item.content}</ReactMarkdown>
@@ -1687,7 +1663,7 @@ export default function App() {
                         data={clients.map(client => ({
                           name: client.name,
                           id: client.id,
-                          total: filteredDashboardHistories.filter(h => h.clientId === client.id).length
+                          total: filteredDashboardHistories.filter(h => h.client_id === client.id).length
                         }))
                         .filter(d => d.total > 0)
                         .sort((a, b) => b.total - a.total)
@@ -1799,7 +1775,7 @@ export default function App() {
                 <div className="space-y-3">
                   {[...clients]
                     .map(client => {
-                      const clientHist = filteredDashboardHistories.filter(h => h.clientId === client.id);
+                      const clientHist = filteredDashboardHistories.filter(h => h.client_id === client.id);
                       return {
                         ...client,
                         history: clientHist,
@@ -2221,7 +2197,7 @@ export default function App() {
                                     )}
                                   </div>
                                   <span className="text-[10px] font-bold text-gray-400">
-                                    {lastUpdate.createdAt?.toDate ? lastUpdate.createdAt.toDate().toLocaleDateString('pt-BR') : new Date(lastUpdate.createdAt).toLocaleDateString('pt-BR')}
+                                    {new Date(lastUpdate.created_at).toLocaleDateString('pt-BR')}
                                   </span>
                                 </div>
                                 <div className="bg-white rounded-2xl p-4 border border-black/5 shadow-sm relative overflow-hidden">
@@ -2268,7 +2244,7 @@ export default function App() {
                       <h3 className="text-xl font-bold text-gray-900">Detalhes da Atualização</h3>
                       <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">
                         <Calendar size={12} />
-                        {selectedHistoryRecord.createdAt?.toDate ? selectedHistoryRecord.createdAt.toDate().toLocaleString('pt-BR') : new Date(selectedHistoryRecord.createdAt).toLocaleString('pt-BR')}
+                        {new Date(selectedHistoryRecord.created_at).toLocaleString('pt-BR')}
                       </div>
                     </div>
                   </div>
@@ -2340,7 +2316,7 @@ export default function App() {
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-10 custom-scrollbar space-y-8 bg-gray-50/30">
-                  {getFilteredHistory(allHistories.filter(h => h.clientId === clientForHistoryModal.id), { type: "all" } as any)
+                  {getFilteredHistory(allHistories.filter(h => h.client_id === clientForHistoryModal.id), { type: "all" } as any)
                     .sort((a, b) => {
                       const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
                       const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
@@ -2378,7 +2354,7 @@ export default function App() {
                               </div>
                               <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                                 <Calendar size={12} />
-                                {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
+                                {new Date(record.created_at).toLocaleString('pt-BR')}
                               </div>
                             </div>
                             <button
@@ -2400,7 +2376,7 @@ export default function App() {
                       </div>
                     ))}
                   
-                  {allHistories.filter(h => h.clientId === clientForHistoryModal.id).length === 0 && (
+                  {allHistories.filter(h => h.client_id === clientForHistoryModal.id).length === 0 && (
                     <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-40">
                       <HistoryIcon size={48} />
                       <p className="font-bold">Nenhum registro encontrado para este cliente.</p>
@@ -2468,7 +2444,7 @@ export default function App() {
                           <div className="flex items-center gap-3">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
+                                {new Date(record.created_at).toLocaleString('pt-BR')}
                               </span>
                               {(record.mode === "client_response" || record.content.includes("[RESPOSTA AO CLIENTE]")) && (
                                 <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Resposta ao Cliente</span>
@@ -2494,11 +2470,14 @@ export default function App() {
                                   message: "Tem certeza que deseja remover este registro do histórico?",
                                   type: 'danger',
                                   onConfirm: async () => {
-                                    const path = `histories/${record.id}`;
                                     try {
-                                      await deleteDoc(doc(db, "histories", record.id));
+                                      const { error } = await supabase
+                                        .from('histories')
+                                        .delete()
+                                        .eq('id', record.id);
+                                      if (error) throw error;
                                     } catch (err) {
-                                      handleFirestoreError(err, OperationType.DELETE, path);
+                                      handleSupabaseError(err, 'delete record');
                                     }
                                   }
                                 });
