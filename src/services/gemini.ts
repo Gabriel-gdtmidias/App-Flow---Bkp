@@ -54,15 +54,15 @@ export async function summarizeChat(
     - Analise se as métricas justificam o envio imediato de um report ou se devemos aguardar mais dados.
     
     FOCO DO RELATÓRIO:
-    - **O que foi executado**: Ações práticas realizadas na conta.
-    - **Pontos Positivos**: Resultados satisfatórios, KPIs batidos ou melhorias observadas.
-    - **Ações de Melhoria**: O que foi feito ou será feito para otimizar ainda mais os resultados.
+    - **Resumo de Performance**: Visão geral dos resultados.
+    - **Ações Executadas**: Ações práticas realizadas na conta.
     
     REGRAS DE FORMATAÇÃO (MONDAY.COM):
     - Use **negrito** para títulos de seção e métricas importantes.
     - Use listas com marcadores.
-    - Deixe DUAS lines de espaço entre cada seção.
-    - Linguagem: Profissional, analítica e focada em performance.
+    - Deixe DUAS linhas de espaço entre cada seção.
+    - Linguagem: Profissional, analítica, mas acima de tudo HUMANA e CLARA.
+    - Evite termos técnicos excessivos. Por exemplo: em vez de "atualização de inventário", use "troca de criativos (anúncios)" ou "atualização das imagens/vídeos".
     
     ESTRUTURA:
     **RESUMO DE PERFORMANCE**
@@ -70,12 +70,6 @@ export async function summarizeChat(
     
     **AÇÕES EXECUTADAS**
     - [Ação]
-    
-    **PONTOS POSITIVOS**
-    - [Resultado/KPI]
-    
-    **OTIMIZAÇÕES E MELHORIAS**
-    - [O que foi feito para melhorar]
     `;
 
   const groupUpdateInstruction = `
@@ -85,6 +79,7 @@ export async function summarizeChat(
     Sua tarefa é gerar uma atualização RESUMIDA e PROFISSIONAL para o grupo de WhatsApp do cliente.
     
     DIRETRIZES DE CONTEÚDO:
+    - **Comunicação Humanizada e Clara**: Use uma linguagem natural, empática e fácil de entender. Evite termos técnicos complexos sem explicação. Por exemplo: em vez de "atualização de inventário", use "troca de criativos (anúncios)".
     - **Foco em Resultados**: O cliente quer ver o valor gerado. Relacione as ações aos resultados.
     - **Métricas Chave**: Sempre que disponíveis, inclua dados de **ROAS**, **Mensagens no WhatsApp**, **Leads** e **Conversões**.
     - **Brevidade Estratégica**: Seja direto, mas traga os números que comprovam a boa performance.
