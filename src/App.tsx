@@ -228,6 +228,7 @@ export default function App() {
   const [isClientHistoryModalOpen, setIsClientHistoryModalOpen] = useState(false);
   const [selectedCategoryForModal, setSelectedCategoryForModal] = useState<{ id: string; label: string; icon: any; color: string } | null>(null);
   const [isCategoryHistoryModalOpen, setIsCategoryHistoryModalOpen] = useState(false);
+  const [expandedMetricsClientId, setExpandedMetricsClientId] = useState<string | null>(null);
   
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -1603,21 +1604,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Summary Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  {[
-                    { label: "Comunicados no Grupo", value: filteredDashboardHistories.filter(h => h.mode === 'communication').length, color: "text-emerald-600", bg: "bg-emerald-50" },
-                    { label: "Ações da Conta", value: filteredDashboardHistories.filter(h => h.mode === 'account_actions').length, color: "text-blue-600", bg: "bg-blue-50" },
-                    { label: "Atualização do Grupo", value: filteredDashboardHistories.filter(h => h.mode === 'group_update').length, color: "text-purple-600", bg: "bg-purple-50" },
-                    { label: "Resposta ao Cliente", value: filteredDashboardHistories.filter(h => h.mode === 'client_response').length, color: "text-orange-600", bg: "bg-orange-50" },
-                    { label: "Resumo de Reunião", value: filteredDashboardHistories.filter(h => h.mode === 'meeting_summary').length, color: "text-indigo-600", bg: "bg-indigo-50" },
-                  ].map((stat, i) => (
-                    <div key={i} className={cn("p-4 rounded-3xl border border-black/5 flex flex-col items-center justify-center text-center space-y-1", stat.bg)}>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{stat.label}</span>
-                      <span className={cn("text-2xl font-black", stat.color)}>{stat.value}</span>
-                    </div>
-                  ))}
-                </div>
+
 
                 <div className="flex items-center gap-3">
                   <div className="flex items-center bg-gray-50 p-1 rounded-2xl border border-black/5">
@@ -1679,10 +1666,21 @@ export default function App() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Demand by Client */}
                 <div className="bg-gray-50 rounded-[32px] p-8 space-y-6">
-                  <h4 className="font-bold text-lg flex items-center gap-2">
-                    <Users size={20} className="text-emerald-500" />
-                    Demanda por Cliente
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-lg flex items-center gap-2">
+                      <Users size={20} className="text-emerald-500" />
+                      Demanda por Cliente {dashboardClientFilter && <span className="text-sm font-normal text-gray-400">({clients.find(c => c.id === dashboardClientFilter)?.name})</span>}
+                    </h4>
+                    {dashboardClientFilter && (
+                      <button 
+                        onClick={() => setDashboardClientFilter(null)}
+                        className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-xl transition-all"
+                        title="Limpar filtro de cliente"
+                      >
+                        <X size={18} />
+                      </button>
+                    )}
+                  </div>
                   <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
@@ -1728,10 +1726,21 @@ export default function App() {
 
                 {/* Demand by Category */}
                 <div className="bg-gray-50 rounded-[32px] p-8 space-y-6">
-                  <h4 className="font-bold text-lg flex items-center gap-2">
-                    <LayoutList size={20} className="text-blue-500" />
-                    Demanda por Categoria
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-lg flex items-center gap-2">
+                      <LayoutList size={20} className="text-blue-500" />
+                      Demanda por Categoria {dashboardClientFilter && <span className="text-sm font-normal text-gray-400">({clients.find(c => c.id === dashboardClientFilter)?.name})</span>}
+                    </h4>
+                    {dashboardClientFilter && (
+                      <button 
+                        onClick={() => setDashboardClientFilter(null)}
+                        className="p-2 text-blue-600 hover:bg-blue-100 rounded-xl transition-all"
+                        title="Limpar filtro de cliente"
+                      >
+                        <X size={18} />
+                      </button>
+                    )}
+                  </div>
                   <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -1772,102 +1781,119 @@ export default function App() {
 
               {/* Detailed Table */}
               <div className="bg-gray-50 rounded-[32px] p-8 space-y-6">
-                <h4 className="font-bold text-lg flex items-center gap-2">
-                  <Search size={20} className="text-purple-500" />
-                  Detalhamento por Cliente
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {clients.map(client => {
-                    const clientHist = allHistories.filter(h => h.clientId === client.id);
-                    const lastUpdate = [...clientHist].sort((a, b) => {
-                      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
-                      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
-                      return dateB.getTime() - dateA.getTime();
-                    })[0];
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-lg flex items-center gap-2">
+                    <Search size={20} className="text-purple-500" />
+                    Detalhamento por Cliente
+                  </h4>
+                  {dashboardClientFilter && (
+                    <button 
+                      onClick={() => setDashboardClientFilter(null)}
+                      className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center gap-2"
+                    >
+                      <X size={12} />
+                      Limpar Filtro de Cliente
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {[...clients]
+                    .map(client => {
+                      const clientHist = filteredDashboardHistories.filter(h => h.clientId === client.id);
+                      return {
+                        ...client,
+                        history: clientHist,
+                        updateCount: clientHist.length
+                      };
+                    })
+                    .filter(c => c.updateCount > 0)
+                    .sort((a, b) => b.updateCount - a.updateCount)
+                    .map(client => {
+                      const isExpanded = expandedMetricsClientId === client.id;
+                      
+                      const stats = [
+                        { label: "Comunicados", value: client.history.filter(h => h.mode === 'communication').length, color: "text-blue-600", bg: "bg-blue-50", icon: LayoutList },
+                        { label: "Ações", value: client.history.filter(h => h.mode === 'account_actions').length, color: "text-purple-600", bg: "bg-purple-50", icon: Briefcase },
+                        { label: "Atualizações", value: client.history.filter(h => h.mode === 'group_update' || h.mode === 'client_response').length, color: "text-emerald-600", bg: "bg-emerald-50", icon: Users },
+                        { label: "Reuniões", value: client.history.filter(h => h.mode === 'meeting_summary').length, color: "text-indigo-600", bg: "bg-indigo-50", icon: Calendar },
+                      ];
 
-                    if (clientHist.length === 0) return null;
-
-                    return (
-                      <div key={client.id} className="bg-white rounded-[32px] p-6 border border-black/5 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600 font-black text-xl shadow-inner">
-                              {client.name[0].toUpperCase()}
-                            </div>
-                            <div>
-                              <h5 className="font-black text-gray-900 leading-tight">{client.name}</h5>
-                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
-                                <HistoryIcon size={10} />
-                                {clientHist.length} atualizações
-                              </div>
-                            </div>
-                          </div>
-                          <button 
-                            onClick={() => {
-                              setClientForHistoryModal(client);
-                              setIsClientHistoryModalOpen(true);
-                            }}
-                            className="px-4 py-2 bg-gray-50 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-transparent hover:border-emerald-100"
+                      return (
+                        <div key={client.id} className="bg-white rounded-[24px] border border-black/5 overflow-hidden transition-all duration-300 shadow-sm hover:shadow-md">
+                          {/* Row Header */}
+                          <div 
+                            onClick={() => setExpandedMetricsClientId(isExpanded ? null : client.id)}
+                            className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50/50 transition-colors"
                           >
-                            Ver todos
-                          </button>
-                        </div>
-
-                        {lastUpdate ? (
-                          <div className="flex-1 bg-gray-50 rounded-2xl p-4 space-y-3 border border-black/5 relative overflow-hidden">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className={cn(
-                                  "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
-                                  lastUpdate.mode === "communication" ? "bg-blue-100 text-blue-700" :
-                                  lastUpdate.mode === "account_actions" ? "bg-purple-100 text-purple-700" :
-                                  (lastUpdate.mode === "group_update" || lastUpdate.mode === "client_response") ? "bg-emerald-100 text-emerald-700" :
-                                  "bg-indigo-100 text-indigo-700"
-                                )}>
-                                  Última: {lastUpdate.mode === "communication" ? "Comunicado" :
-                                           lastUpdate.mode === "account_actions" ? "Ação da Conta" :
-                                           (lastUpdate.mode === "group_update" || lastUpdate.mode === "client_response") ? "Atualização Grupo" :
-                                           "Resumo Reunião"}
-                                </span>
-                                {(lastUpdate.mode === "client_response" || lastUpdate.content.includes("[RESPOSTA AO CLIENTE]")) && (
-                                  <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter">Resposta</span>
-                                )}
-                                {(lastUpdate.mode === "group_update" && !lastUpdate.content.includes("[RESPOSTA AO CLIENTE]")) && (
-                                  <span className="bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter">Envio</span>
-                                )}
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 font-black text-lg">
+                                {client.name[0].toUpperCase()}
                               </div>
-                              <span className="text-[8px] font-bold text-gray-400">
-                                {lastUpdate.createdAt?.toDate ? lastUpdate.createdAt.toDate().toLocaleDateString('pt-BR') : new Date(lastUpdate.createdAt).toLocaleDateString('pt-BR')}
-                              </span>
+                              <div>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDashboardClientFilter(client.id);
+                                  }}
+                                  className="font-black text-gray-900 leading-tight hover:text-emerald-600 transition-colors text-left"
+                                >
+                                  {client.name}
+                                </button>
+                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                                  <HistoryIcon size={10} />
+                                  {client.updateCount} atualizações no período
+                                </div>
+                              </div>
                             </div>
-                            <div className="prose prose-sm max-w-none text-[11px] text-gray-600 line-clamp-4 leading-relaxed italic">
-                              <ReactMarkdown>
-                                {lastUpdate.content
-                                  .replace("[RESPOSTA AO CLIENTE] ", "")
-                                  .replace("[ENVIO DE MENSAGEM] ", "")}
-                              </ReactMarkdown>
+                            <div className="flex items-center gap-3">
+                              <div className={cn("p-2 rounded-full transition-transform duration-300", isExpanded ? "rotate-180 bg-emerald-50 text-emerald-600" : "text-gray-400")}>
+                                <ChevronDown size={20} />
+                              </div>
                             </div>
-                            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-gray-50 to-transparent" />
                           </div>
-                        ) : (
-                          <div className="flex-1 bg-gray-50 rounded-2xl p-4 flex items-center justify-center text-center border border-dashed border-gray-200">
-                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Sem atualizações recentes</p>
-                          </div>
-                        )}
 
-                        <button
-                          onClick={() => {
-                            setSelectedClientId(client.id);
-                            setIsDashboardOpen(false);
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                          }}
-                          className="w-full py-3 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/10 active:scale-95"
-                        >
-                          Gerenciar Cliente
-                        </button>
-                      </div>
-                    );
-                  })}
+                          {/* Expanded Content */}
+                          {isExpanded && (
+                            <div className="px-6 pb-6 pt-2 border-t border-black/5 bg-gray-50/30 animate-in slide-in-from-top-2 duration-300">
+                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                                {stats.map((stat, i) => (
+                                  <div key={i} className={cn("p-4 rounded-2xl border border-black/5 flex flex-col items-center justify-center text-center space-y-1", stat.bg)}>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{stat.label}</span>
+                                    <span className={cn("text-xl font-black", stat.color)}>{stat.value}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="flex flex-col sm:flex-row gap-3">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setClientForHistoryModal(client);
+                                    setIsClientHistoryModalOpen(true);
+                                  }}
+                                  className="flex-1 py-3 bg-white border border-black/5 text-gray-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                                >
+                                  <HistoryIcon size={14} />
+                                  Ver Histórico Completo
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedClientId(client.id);
+                                    setIsDashboardOpen(false);
+                                    window.scrollTo({ top: 0, behavior: "smooth" });
+                                  }}
+                                  className="flex-1 py-3 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/10 flex items-center justify-center gap-2"
+                                >
+                                  <Briefcase size={14} />
+                                  Gerenciar Cliente
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             </section>
