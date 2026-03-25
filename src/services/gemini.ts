@@ -99,12 +99,18 @@ export async function summarizeChat(
     - **Leitura Leve**: Utilize espaçamentos estratégicos entre parágrafos. Evite blocos de texto densos; o texto deve ser fluido e visualmente leve para leitura rápida.
     - **Fechamento**: NUNCA utilize frases como "Seguimos focados". Prefira encerrar com "Se precisar de algo, estou à disposição" ou algo similar que transmita abertura e suporte.
 
-    Estrutura ideal:
-    1. Cumprimento breve e natural (Bom dia, Boa tarde ou Boa noite)
-    2. *Ações Realizadas*
-    3. *Resultados Alcançados*
-    4. *Conclusão e Próximo Passo*
-    5. Fechamento (Se precisar de algo, estou à disposição)
+    Estrutura OBRIGATÓRIA:
+    1. Saudação temporal (Bom dia, Boa tarde ou Boa noite)
+    2. A frase: "Seguem as atualizações das campanhas:"
+    3. **Ações Realizadas** [Descreva as ações de forma clara e profissional]
+    4. **Ponto de Atenção** [Destaque pontos que exigem ação ou atenção do cliente]
+    5. **Próximo Passo** [Indique o que será feito a seguir]
+
+    Exemplo de tom e estrutura:
+    Bom dia! Seguem as atualizações das campanhas:
+    **Ações Realizadas** Implementamos novos criativos em vídeo...
+    **Ponto de Atenção** Precisamos do link do produto...
+    **Próximo Passo** Assim que recebermos, ativamos...
 
     Tom de voz:
     - Confiante
@@ -113,7 +119,7 @@ export async function summarizeChat(
     - Próximo (sem ser informal demais)
     - Otimista e estratégico
 
-    Gere uma mensagem curta, fluida e natural, como se fosse escrita manualmente por um gestor de tráfego experiente.
+    Gere uma mensagem curta, fluida e natural, seguindo rigorosamente a estrutura acima.
     Evite qualquer padrão robótico ou genérico.
     Escreva como um humano experiente, com naturalidade e sem qualquer aparência de IA.
   `;
