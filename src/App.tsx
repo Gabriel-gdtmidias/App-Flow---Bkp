@@ -221,6 +221,13 @@ export default function App() {
   const [groupMessage, setGroupMessage] = useState<string | null>(null);
   const [isSummarizingHistory, setIsSummarizingHistory] = useState(false);
   const [isGeneratingGroupMessage, setIsGeneratingGroupMessage] = useState(false);
+  const [viewAllCategories, setViewAllCategories] = useState<string[]>([]);
+  const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<HistoryRecord | null>(null);
+  const [isHistoryDetailModalOpen, setIsHistoryDetailModalOpen] = useState(false);
+  const [clientForHistoryModal, setClientForHistoryModal] = useState<Client | null>(null);
+  const [isClientHistoryModalOpen, setIsClientHistoryModalOpen] = useState(false);
+  const [selectedCategoryForModal, setSelectedCategoryForModal] = useState<{ id: string; label: string; icon: any; color: string } | null>(null);
+  const [isCategoryHistoryModalOpen, setIsCategoryHistoryModalOpen] = useState(false);
   
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -299,6 +306,23 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isThreadView, setIsThreadView] = useState(false);
+  const [threadMode, setThreadMode] = useState<SummaryMode | null>(null);
+  const [threadClientId, setThreadClientId] = useState<string | null>(null);
+  
+  // Check for URL parameters on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get("view");
+    const modeParam = params.get("mode") as SummaryMode;
+    const clientIdParam = params.get("clientId");
+
+    if (view === "thread" && modeParam && clientIdParam) {
+      setIsThreadView(true);
+      setThreadMode(modeParam);
+      setThreadClientId(clientIdParam);
+    }
+  }, []);
   
   // Clear inputs when client changes
   useEffect(() => {
@@ -494,19 +518,15 @@ export default function App() {
     }
     
     if (dashboardDateFilter === "7days") {
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const sevenDaysAgo = new Date(yesterday);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 7 days including yesterday
-      return historyDate >= sevenDaysAgo && historyDate < today;
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 7 days including today
+      return historyDate >= sevenDaysAgo && historyDate <= now;
     }
     
     if (dashboardDateFilter === "30days") {
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const thirtyDaysAgo = new Date(yesterday);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29); // 30 days including yesterday
-      return historyDate >= thirtyDaysAgo && historyDate < today;
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29); // 30 days including today
+      return historyDate >= thirtyDaysAgo && historyDate <= now;
     }
 
     if (dashboardDateFilter === "current_month") {
@@ -704,11 +724,22 @@ export default function App() {
     if (!user || !selectedClientId) return;
 
     const path = "histories";
+    let finalMode = mode;
+    let finalContent = content;
+
+    // Merge client_response into group_update with prefix
+    if (mode === "client_response") {
+      finalMode = "group_update";
+      finalContent = `[RESPOSTA AO CLIENTE] ${content}`;
+    } else if (mode === "group_update") {
+      finalContent = `[ENVIO DE MENSAGEM] ${content}`;
+    }
+
     try {
       await addDoc(collection(db, path), {
         clientId: selectedClientId,
-        mode,
-        content,
+        mode: finalMode,
+        content: finalContent,
         createdAt: serverTimestamp(),
         uid: user.uid
       });
@@ -853,52 +884,50 @@ export default function App() {
     return new Date(year, month - 1, day);
   };
 
-  const getFilteredHistory = () => {
-    if (appliedDateFilter.type === "all") return clientHistories;
+  const getFilteredHistory = (records = clientHistories, filter = appliedDateFilter) => {
+    if (filter.type === "all") return records;
 
     const now = new Date();
     let startDate: Date | null = null;
     let endDate: Date | null = null;
 
-    if (appliedDateFilter.type === "today") {
+    if (filter.type === "today") {
       startDate = new Date();
       startDate.setHours(0, 0, 0, 0);
       endDate = new Date();
       endDate.setHours(23, 59, 59, 999);
-    } else if (appliedDateFilter.type === "yesterday") {
+    } else if (filter.type === "yesterday") {
       startDate = new Date();
       startDate.setDate(now.getDate() - 1);
       startDate.setHours(0, 0, 0, 0);
       endDate = new Date();
       endDate.setDate(now.getDate() - 1);
       endDate.setHours(23, 59, 59, 999);
-    } else if (appliedDateFilter.type === "7days") {
+    } else if (filter.type === "7days") {
       startDate = new Date();
-      startDate.setDate(now.getDate() - 7);
+      startDate.setDate(now.getDate() - 6); // 7 days including today
       startDate.setHours(0, 0, 0, 0);
       endDate = new Date();
-      endDate.setDate(now.getDate() - 1);
       endDate.setHours(23, 59, 59, 999);
-    } else if (appliedDateFilter.type === "30days") {
+    } else if (filter.type === "30days") {
       startDate = new Date();
-      startDate.setDate(now.getDate() - 30);
+      startDate.setDate(now.getDate() - 29); // 30 days including today
       startDate.setHours(0, 0, 0, 0);
       endDate = new Date();
-      endDate.setDate(now.getDate() - 1);
       endDate.setHours(23, 59, 59, 999);
-    } else if (appliedDateFilter.type === "custom") {
-      startDate = parseLocalDate(appliedDateFilter.customStartDate);
-      endDate = parseLocalDate(appliedDateFilter.customEndDate);
+    } else if (filter.type === "custom") {
+      startDate = parseLocalDate(filter.customStartDate);
+      endDate = parseLocalDate(filter.customEndDate);
       if (endDate) endDate.setHours(23, 59, 59, 999);
-    } else if (appliedDateFilter.type === "specific") {
-      startDate = parseLocalDate(appliedDateFilter.specificDate);
+    } else if (filter.type === "specific") {
+      startDate = parseLocalDate(filter.specificDate);
       if (startDate) startDate.setHours(0, 0, 0, 0);
-      endDate = parseLocalDate(appliedDateFilter.specificDate);
+      endDate = parseLocalDate(filter.specificDate);
       if (endDate) endDate.setHours(23, 59, 59, 999);
     }
 
-    return clientHistories.filter(h => {
-      const date = h.createdAt?.toDate();
+    return records.filter(h => {
+      const date = h.createdAt?.toDate ? h.createdAt.toDate() : new Date(h.createdAt);
       if (!date) return false;
       if (startDate && date < startDate) return false;
       if (endDate && date > endDate) return false;
@@ -912,7 +941,7 @@ export default function App() {
     const title = modeToClear ? "Limpar Categoria" : "Limpar Histórico";
     const message = modeToClear 
       ? `Tem certeza que deseja apagar todo o histórico de ${
-          modeToClear === "communication" ? "Comunicados" : 
+          modeToClear === "communication" ? "Comunicados no Grupo" : 
           modeToClear === "account_actions" ? "Ações da Conta" : 
           modeToClear === "group_update" ? "Atualizações" : 
           modeToClear === "client_response" ? "Respostas" : 
@@ -1291,6 +1320,65 @@ export default function App() {
     );
   }
 
+  if (isThreadView && threadMode && threadClientId) {
+    const client = clients.find(c => c.id === threadClientId);
+    const filteredHistory = allHistories
+      .filter(h => h.clientId === threadClientId && h.mode === threadMode)
+      .sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+    const categoryLabels: Record<SummaryMode, string> = {
+      communication: "Comunicados no Grupo",
+      account_actions: "Ações da Conta",
+      group_update: "Atualização do Grupo",
+      client_response: "Resposta ao Cliente",
+      meeting_summary: "Resumo de Reunião"
+    };
+
+    return (
+      <div className="min-h-screen bg-white p-6 max-w-3xl mx-auto space-y-8">
+        <header className="flex items-center justify-between border-b pb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{categoryLabels[threadMode]}</h1>
+            <p className="text-sm text-gray-500">Histórico completo: {client?.name || "Cliente"}</p>
+          </div>
+          <button 
+            onClick={() => window.close()}
+            className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all"
+          >
+            Fechar Aba
+          </button>
+        </header>
+
+        <div className="space-y-6">
+          {filteredHistory.length > 0 ? (
+            filteredHistory.map((item, idx) => (
+              <div key={item.id} className="relative pl-8 pb-8 border-l-2 border-emerald-100 last:border-0 last:pb-0">
+                <div className="absolute left-[-9px] top-0 w-4 h-4 bg-emerald-500 rounded-full border-4 border-white shadow-sm" />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <Calendar size={12} />
+                    {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleString('pt-BR') : new Date(item.createdAt).toLocaleString('pt-BR')}
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl p-6 border border-black/5 prose prose-sm max-w-none text-gray-700">
+                    <ReactMarkdown>{item.content}</ReactMarkdown>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-20 text-gray-400 italic">
+              Nenhum registro encontrado nesta categoria.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[#f5f5f5] font-sans">
@@ -1514,6 +1602,23 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {/* Summary Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {[
+                    { label: "Comunicados no Grupo", value: filteredDashboardHistories.filter(h => h.mode === 'communication').length, color: "text-emerald-600", bg: "bg-emerald-50" },
+                    { label: "Ações da Conta", value: filteredDashboardHistories.filter(h => h.mode === 'account_actions').length, color: "text-blue-600", bg: "bg-blue-50" },
+                    { label: "Atualização do Grupo", value: filteredDashboardHistories.filter(h => h.mode === 'group_update').length, color: "text-purple-600", bg: "bg-purple-50" },
+                    { label: "Resposta ao Cliente", value: filteredDashboardHistories.filter(h => h.mode === 'client_response').length, color: "text-orange-600", bg: "bg-orange-50" },
+                    { label: "Resumo de Reunião", value: filteredDashboardHistories.filter(h => h.mode === 'meeting_summary').length, color: "text-indigo-600", bg: "bg-indigo-50" },
+                  ].map((stat, i) => (
+                    <div key={i} className={cn("p-4 rounded-3xl border border-black/5 flex flex-col items-center justify-center text-center space-y-1", stat.bg)}>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{stat.label}</span>
+                      <span className={cn("text-2xl font-black", stat.color)}>{stat.value}</span>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="flex items-center gap-3">
                   <div className="flex items-center bg-gray-50 p-1 rounded-2xl border border-black/5">
                     {[
@@ -1632,11 +1737,11 @@ export default function App() {
                       <PieChart>
                         <Pie
                           data={[
-                            { name: 'Comunicados', value: filteredDashboardHistories.filter(h => h.mode === 'communication').length, color: '#10b981' },
-                            { name: 'Ações Conta', value: filteredDashboardHistories.filter(h => h.mode === 'account_actions').length, color: '#3b82f6' },
-                            { name: 'Atualizações', value: filteredDashboardHistories.filter(h => h.mode === 'group_update').length, color: '#8b5cf6' },
-                            { name: 'Respostas', value: filteredDashboardHistories.filter(h => h.mode === 'client_response').length, color: '#f59e0b' },
-                            { name: 'Reuniões', value: filteredDashboardHistories.filter(h => h.mode === 'meeting_summary').length, color: '#6366f1' },
+                            { name: 'Comunicados no Grupo', value: filteredDashboardHistories.filter(h => h.mode === 'communication').length, color: '#10b981' },
+                            { name: 'Ações da Conta', value: filteredDashboardHistories.filter(h => h.mode === 'account_actions').length, color: '#3b82f6' },
+                            { name: 'Atualização do Grupo', value: filteredDashboardHistories.filter(h => h.mode === 'group_update').length, color: '#8b5cf6' },
+                            { name: 'Resposta ao Cliente', value: filteredDashboardHistories.filter(h => h.mode === 'client_response').length, color: '#f59e0b' },
+                            { name: 'Resumo de Reunião', value: filteredDashboardHistories.filter(h => h.mode === 'meeting_summary').length, color: '#6366f1' },
                           ].filter(d => d.value > 0)}
                           cx="50%"
                           cy="50%"
@@ -1671,59 +1776,98 @@ export default function App() {
                   <Search size={20} className="text-purple-500" />
                   Detalhamento por Cliente
                 </h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-200">
-                        <th className="pb-4 pl-4">Cliente</th>
-                        <th className="pb-4 text-center">Comunicados</th>
-                        <th className="pb-4 text-center">Ações Conta</th>
-                        <th className="pb-4 text-center">Atualizações</th>
-                        <th className="pb-4 text-center">Respostas</th>
-                        <th className="pb-4 text-center">Reuniões</th>
-                        <th className="pb-4 text-right pr-4">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {clients.map(client => {
-                        const clientHist = filteredDashboardHistories.filter(h => h.clientId === client.id);
-                        return {
-                          id: client.id,
-                          name: client.name,
-                          communication: clientHist.filter(h => h.mode === 'communication').length,
-                          account_actions: clientHist.filter(h => h.mode === 'account_actions').length,
-                          group_update: clientHist.filter(h => h.mode === 'group_update').length,
-                          client_response: clientHist.filter(h => h.mode === 'client_response').length,
-                          meeting_summary: clientHist.filter(h => h.mode === 'meeting_summary').length,
-                          total: clientHist.length
-                        };
-                      })
-                      .filter(c => c.total > 0)
-                      .sort((a, b) => b.total - a.total)
-                      .map(counts => {
-                        return (
-                          <tr key={counts.id} className="text-sm hover:bg-white/50 transition-colors group">
-                            <td 
-                              className="py-4 pl-4 font-bold text-gray-900 cursor-pointer hover:text-emerald-600 transition-colors"
-                              onClick={() => setDashboardClientFilter(counts.id)}
-                            >
-                              {counts.name}
-                            </td>
-                            <td className="py-4 text-center text-gray-600">{counts.communication}</td>
-                            <td className="py-4 text-center text-gray-600">{counts.account_actions}</td>
-                            <td className="py-4 text-center text-gray-600">{counts.group_update}</td>
-                            <td className="py-4 text-center text-gray-600">{counts.client_response}</td>
-                            <td className="py-4 text-center text-gray-600">{counts.meeting_summary}</td>
-                            <td className="py-4 text-right pr-4">
-                              <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-bold text-xs">
-                                {counts.total}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {clients.map(client => {
+                    const clientHist = allHistories.filter(h => h.clientId === client.id);
+                    const lastUpdate = [...clientHist].sort((a, b) => {
+                      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+                      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+                      return dateB.getTime() - dateA.getTime();
+                    })[0];
+
+                    if (clientHist.length === 0) return null;
+
+                    return (
+                      <div key={client.id} className="bg-white rounded-[32px] p-6 border border-black/5 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600 font-black text-xl shadow-inner">
+                              {client.name[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <h5 className="font-black text-gray-900 leading-tight">{client.name}</h5>
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                                <HistoryIcon size={10} />
+                                {clientHist.length} atualizações
+                              </div>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => {
+                              setClientForHistoryModal(client);
+                              setIsClientHistoryModalOpen(true);
+                            }}
+                            className="px-4 py-2 bg-gray-50 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-transparent hover:border-emerald-100"
+                          >
+                            Ver todos
+                          </button>
+                        </div>
+
+                        {lastUpdate ? (
+                          <div className="flex-1 bg-gray-50 rounded-2xl p-4 space-y-3 border border-black/5 relative overflow-hidden">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
+                                  lastUpdate.mode === "communication" ? "bg-blue-100 text-blue-700" :
+                                  lastUpdate.mode === "account_actions" ? "bg-purple-100 text-purple-700" :
+                                  (lastUpdate.mode === "group_update" || lastUpdate.mode === "client_response") ? "bg-emerald-100 text-emerald-700" :
+                                  "bg-indigo-100 text-indigo-700"
+                                )}>
+                                  Última: {lastUpdate.mode === "communication" ? "Comunicado" :
+                                           lastUpdate.mode === "account_actions" ? "Ação da Conta" :
+                                           (lastUpdate.mode === "group_update" || lastUpdate.mode === "client_response") ? "Atualização Grupo" :
+                                           "Resumo Reunião"}
+                                </span>
+                                {(lastUpdate.mode === "client_response" || lastUpdate.content.includes("[RESPOSTA AO CLIENTE]")) && (
+                                  <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter">Resposta</span>
+                                )}
+                                {(lastUpdate.mode === "group_update" && !lastUpdate.content.includes("[RESPOSTA AO CLIENTE]")) && (
+                                  <span className="bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter">Envio</span>
+                                )}
+                              </div>
+                              <span className="text-[8px] font-bold text-gray-400">
+                                {lastUpdate.createdAt?.toDate ? lastUpdate.createdAt.toDate().toLocaleDateString('pt-BR') : new Date(lastUpdate.createdAt).toLocaleDateString('pt-BR')}
                               </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            </div>
+                            <div className="prose prose-sm max-w-none text-[11px] text-gray-600 line-clamp-4 leading-relaxed italic">
+                              <ReactMarkdown>
+                                {lastUpdate.content
+                                  .replace("[RESPOSTA AO CLIENTE] ", "")
+                                  .replace("[ENVIO DE MENSAGEM] ", "")}
+                              </ReactMarkdown>
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-gray-50 to-transparent" />
+                          </div>
+                        ) : (
+                          <div className="flex-1 bg-gray-50 rounded-2xl p-4 flex items-center justify-center text-center border border-dashed border-gray-200">
+                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Sem atualizações recentes</p>
+                          </div>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            setSelectedClientId(client.id);
+                            setIsDashboardOpen(false);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          className="w-full py-3 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/10 active:scale-95"
+                        >
+                          Gerenciar Cliente
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </section>
@@ -1979,99 +2123,101 @@ export default function App() {
                   </div>
 
                   {/* Categorized History Boxes */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[
-                      { id: "communication", label: "Comunicados", icon: LayoutList, color: "blue" },
+                      { id: "communication", label: "Comunicados no Grupo", icon: LayoutList, color: "blue" },
                       { id: "account_actions", label: "Ações da Conta", icon: Briefcase, color: "purple" },
-                      { id: "group_update", label: "Atualizações de Grupo", icon: Users, color: "emerald" },
-                      { id: "client_response", label: "Respostas ao Cliente", icon: MessageCircle, color: "orange" },
-                      { id: "meeting_summary", label: "Resumos de Reunião", icon: Calendar, color: "blue" }
+                      { id: "group_update", label: "Atualização do Grupo", icon: Users, color: "emerald" },
+                      { id: "meeting_summary", label: "Resumo de Reunião", icon: Calendar, color: "indigo" }
                     ].map(category => {
-                      const filtered = getFilteredHistory().filter(h => h.mode === category.id);
+                      const filtered = getFilteredHistory().filter(h => {
+                        if (category.id === "group_update") {
+                          return h.mode === "group_update" || h.mode === "client_response";
+                        }
+                        return h.mode === category.id;
+                      });
+                      
+                      const lastUpdate = filtered[0]; // Already sorted by createdAt desc in useEffect
+                      
                       return (
-                        <div key={category.id} className="bg-white rounded-3xl border border-black/5 overflow-hidden flex flex-col shadow-sm">
+                        <div key={category.id} className="bg-white rounded-[32px] border border-black/5 overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all group">
                           <div className={cn(
-                            "px-6 py-4 flex items-center justify-between border-b border-black/5",
-                            category.color === "blue" ? "bg-blue-50/50" :
-                            category.color === "purple" ? "bg-purple-50/50" :
-                            category.color === "emerald" ? "bg-emerald-50/50" :
-                            "bg-orange-50/50"
+                            "px-6 py-5 flex items-center justify-between border-b border-black/5",
+                            category.color === "blue" ? "bg-blue-50/30" :
+                            category.color === "purple" ? "bg-purple-50/30" :
+                            category.color === "emerald" ? "bg-emerald-50/30" :
+                            "bg-indigo-50/30"
                           )}>
-                            <div className="flex items-center gap-2">
-                              <category.icon size={18} className={cn(
-                                category.color === "blue" ? "text-blue-500" :
-                                category.color === "purple" ? "text-purple-500" :
-                                category.color === "emerald" ? "text-emerald-500" :
-                                "text-orange-500"
-                              )} />
-                              <h4 className="font-bold text-sm">{category.label}</h4>
-                              <span className="bg-white px-2 py-0.5 rounded-full text-[10px] font-bold border border-black/5">
-                                {filtered.length}
-                              </span>
+                            <div className="flex items-center gap-3">
+                              <div className={cn(
+                                "w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-lg",
+                                category.color === "blue" ? "bg-blue-500 shadow-blue-500/20" :
+                                category.color === "purple" ? "bg-purple-500 shadow-purple-500/20" :
+                                category.color === "emerald" ? "bg-emerald-500 shadow-emerald-500/20" :
+                                "bg-indigo-500 shadow-indigo-500/20"
+                              )}>
+                                <category.icon size={20} />
+                              </div>
+                              <div>
+                                <h5 className="font-black text-sm text-gray-900 leading-tight">{category.label}</h5>
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                  {filtered.length} registros
+                                </span>
+                              </div>
                             </div>
-                            {filtered.length > 0 && (
-                              <button 
-                                onClick={() => handleClearHistory(category.id as any)}
-                                className="text-gray-400 hover:text-red-500 transition-colors"
-                                title="Limpar esta categoria"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            )}
+                            <button 
+                              onClick={() => {
+                                setSelectedCategoryForModal(category);
+                                setIsCategoryHistoryModalOpen(true);
+                              }}
+                              className="px-4 py-2 bg-white text-gray-400 hover:text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-black/5 hover:border-emerald-100"
+                            >
+                              Ver todos
+                            </button>
                           </div>
                           
-                          <div className="flex-1 p-4 space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar bg-gray-50/30">
+                          <div className="flex-1 p-6 bg-gray-50/30">
                             {filtered.length === 0 ? (
-                              <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-2 opacity-40">
+                              <div className="h-full flex flex-col items-center justify-center text-center py-10 space-y-2 opacity-30">
                                 <category.icon size={32} />
-                                <p className="text-xs">Nenhum registro</p>
+                                <p className="text-[10px] font-bold uppercase tracking-widest">Nenhum registro</p>
                               </div>
                             ) : (
-                              filtered.map(record => (
-                                <div key={record.id} className="bg-white rounded-2xl p-4 border border-black/5 space-y-2 group relative shadow-sm hover:shadow-md transition-all">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-                                      <Calendar size={10} />
-                                      {record.createdAt?.toDate().toLocaleString('pt-BR')}
-                                    </div>
-                                    <button 
-                                      onClick={() => {
-                                        setConfirmModal({
-                                          isOpen: true,
-                                          title: "Remover Registro",
-                                          message: "Tem certeza que deseja remover este registro do histórico?",
-                                          type: 'danger',
-                                          onConfirm: async () => {
-                                            const path = `histories/${record.id}`;
-                                            try {
-                                              await deleteDoc(doc(db, "histories", record.id));
-                                            } catch (err) {
-                                              handleFirestoreError(err, OperationType.DELETE, path);
-                                            }
-                                          }
-                                        });
-                                      }}
-                                      className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
-                                    >
-                                      <X size={12} />
-                                    </button>
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Última Atualização</span>
+                                    {lastUpdate && (lastUpdate.mode === "client_response" || lastUpdate.content.includes("[RESPOSTA AO CLIENTE]")) && (
+                                      <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter">Resposta</span>
+                                    )}
+                                    {lastUpdate && (lastUpdate.mode === "group_update" && !lastUpdate.content.includes("[RESPOSTA AO CLIENTE]")) && (
+                                      <span className="bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter">Envio</span>
+                                    )}
                                   </div>
-                                  <div className="prose prose-sm max-w-none text-xs text-gray-600 line-clamp-4">
-                                    <ReactMarkdown>{record.content}</ReactMarkdown>
-                                  </div>
-                                  <button 
-                                    onClick={() => {
-                                      setMode(record.mode);
-                                      setSummaries(prev => ({ ...prev, [record.mode]: record.content }));
-                                      setIsHistoryOpen(false);
-                                      window.scrollTo({ top: 0, behavior: "smooth" });
-                                    }}
-                                    className="text-[10px] font-bold text-emerald-600 hover:underline"
-                                  >
-                                    Ver completo
-                                  </button>
+                                  <span className="text-[10px] font-bold text-gray-400">
+                                    {lastUpdate.createdAt?.toDate ? lastUpdate.createdAt.toDate().toLocaleDateString('pt-BR') : new Date(lastUpdate.createdAt).toLocaleDateString('pt-BR')}
+                                  </span>
                                 </div>
-                              ))
+                                <div className="bg-white rounded-2xl p-4 border border-black/5 shadow-sm relative overflow-hidden">
+                                  <div className="prose prose-sm max-w-none text-[11px] text-gray-600 line-clamp-3 leading-relaxed italic">
+                                    <ReactMarkdown>
+                                      {lastUpdate.content
+                                        .replace("[RESPOSTA AO CLIENTE] ", "")
+                                        .replace("[ENVIO DE MENSAGEM] ", "")}
+                                    </ReactMarkdown>
+                                  </div>
+                                  <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent" />
+                                </div>
+                                <button 
+                                  onClick={() => {
+                                    setSelectedHistoryRecord(lastUpdate);
+                                    setIsHistoryDetailModalOpen(true);
+                                  }}
+                                  className="w-full py-2.5 bg-white border border-black/5 text-gray-500 hover:text-emerald-600 hover:border-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                >
+                                  Ver Detalhes
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -2081,6 +2227,286 @@ export default function App() {
                 </div>
               )}
             </section>
+          )}
+
+          {/* History Detail Modal */}
+          {isHistoryDetailModalOpen && selectedHistoryRecord && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+              <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300 overflow-hidden">
+                <div className="px-8 py-6 border-b border-black/5 flex items-center justify-between bg-gray-50/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                      <HistoryIcon size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">Detalhes da Atualização</h3>
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">
+                        <Calendar size={12} />
+                        {selectedHistoryRecord.createdAt?.toDate ? selectedHistoryRecord.createdAt.toDate().toLocaleString('pt-BR') : new Date(selectedHistoryRecord.createdAt).toLocaleString('pt-BR')}
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setIsHistoryDetailModalOpen(false);
+                      setSelectedHistoryRecord(null);
+                    }} 
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                  <div className="bg-gray-50 rounded-2xl p-8 border border-black/5 prose prose-sm max-w-none text-gray-700 leading-relaxed">
+                    <ReactMarkdown>{selectedHistoryRecord.content}</ReactMarkdown>
+                  </div>
+                </div>
+
+                <div className="px-8 py-6 border-t border-black/5 bg-gray-50/50 flex justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedHistoryRecord.content);
+                      // Optional: show a toast or feedback
+                    }}
+                    className="px-6 py-2.5 bg-white border border-black/5 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all flex items-center gap-2"
+                  >
+                    <Copy size={16} />
+                    Copiar Texto
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsHistoryDetailModalOpen(false);
+                      setSelectedHistoryRecord(null);
+                    }}
+                    className="px-6 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Client History Modal */}
+          {isClientHistoryModalOpen && clientForHistoryModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+              <div className="bg-white rounded-[40px] w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 overflow-hidden">
+                <div className="px-10 py-8 border-b border-black/5 flex items-center justify-between bg-gray-50/50">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-500/20">
+                      <Users size={28} />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black text-gray-900">{clientForHistoryModal.name}</h3>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Histórico Completo de Atualizações</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setIsClientHistoryModalOpen(false);
+                      setClientForHistoryModal(null);
+                    }} 
+                    className="p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-2xl transition-all"
+                  >
+                    <X size={28} />
+                  </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-10 custom-scrollbar space-y-8 bg-gray-50/30">
+                  {getFilteredHistory(allHistories.filter(h => h.clientId === clientForHistoryModal.id), { type: "all" } as any)
+                    .sort((a, b) => {
+                      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+                      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+                      return dateB.getTime() - dateA.getTime();
+                    })
+                    .map((record, idx) => (
+                      <div key={record.id} className="relative pl-8 animate-in slide-in-from-left-4 duration-500" style={{ animationDelay: `${idx * 50}ms` }}>
+                        {/* Timeline line */}
+                        <div className="absolute left-0 top-0 bottom-0 w-px bg-emerald-200" />
+                        {/* Timeline dot */}
+                        <div className="absolute left-[-4px] top-2 w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.1)]" />
+                        
+                        <div className="bg-white rounded-3xl p-6 border border-black/5 shadow-sm space-y-4 hover:shadow-md transition-all">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                <span className={cn(
+                                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                                  record.mode === "communication" ? "bg-blue-100 text-blue-700" :
+                                  record.mode === "account_actions" ? "bg-purple-100 text-purple-700" :
+                                  (record.mode === "group_update" || record.mode === "client_response") ? "bg-emerald-100 text-emerald-700" :
+                                  "bg-indigo-100 text-indigo-700"
+                                )}>
+                                  {record.mode === "communication" ? "Comunicado" :
+                                   record.mode === "account_actions" ? "Ação da Conta" :
+                                   (record.mode === "group_update" || record.mode === "client_response") ? "Atualização Grupo" :
+                                   "Resumo Reunião"}
+                                </span>
+                                {(record.mode === "client_response" || record.content.includes("[RESPOSTA AO CLIENTE]")) && (
+                                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Resposta</span>
+                                )}
+                                {(record.mode === "group_update" && !record.content.includes("[RESPOSTA AO CLIENTE]")) && (
+                                  <span className="bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Envio</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                <Calendar size={12} />
+                                {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => navigator.clipboard.writeText(record.content.replace("[RESPOSTA AO CLIENTE] ", "").replace("[ENVIO DE MENSAGEM] ", ""))}
+                              className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
+                              title="Copiar conteúdo"
+                            >
+                              <Copy size={14} />
+                            </button>
+                          </div>
+                          <div className="prose prose-sm max-w-none text-gray-600 leading-relaxed">
+                            <ReactMarkdown>
+                              {record.content
+                                .replace("[RESPOSTA AO CLIENTE] ", "")
+                                .replace("[ENVIO DE MENSAGEM] ", "")}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  
+                  {allHistories.filter(h => h.clientId === clientForHistoryModal.id).length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-40">
+                      <HistoryIcon size={48} />
+                      <p className="font-bold">Nenhum registro encontrado para este cliente.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="px-10 py-8 border-t border-black/5 bg-gray-50/50 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setIsClientHistoryModalOpen(false);
+                      setClientForHistoryModal(null);
+                    }}
+                    className="px-10 py-4 bg-emerald-500 text-white rounded-2xl text-sm font-black hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest"
+                  >
+                    Fechar Histórico
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Category History Modal */}
+          {isCategoryHistoryModalOpen && selectedCategoryForModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+              <div className="bg-white rounded-[40px] w-full max-w-3xl shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300 overflow-hidden">
+                <div className="px-10 py-8 border-b border-black/5 flex items-center justify-between bg-gray-50/50">
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl",
+                      selectedCategoryForModal.color === "blue" ? "bg-blue-500 shadow-blue-500/20" :
+                      selectedCategoryForModal.color === "purple" ? "bg-purple-500 shadow-purple-500/20" :
+                      selectedCategoryForModal.color === "emerald" ? "bg-emerald-500 shadow-emerald-500/20" :
+                      "bg-indigo-500 shadow-indigo-500/20"
+                    )}>
+                      <selectedCategoryForModal.icon size={28} />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black text-gray-900">{selectedCategoryForModal.label}</h3>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Histórico de {selectedCategoryForModal.label}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setIsCategoryHistoryModalOpen(false);
+                      setSelectedCategoryForModal(null);
+                    }} 
+                    className="p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-2xl transition-all"
+                  >
+                    <X size={28} />
+                  </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-10 custom-scrollbar space-y-6 bg-gray-50/30">
+                  {getFilteredHistory()
+                    .filter(h => {
+                      if (selectedCategoryForModal.id === "group_update") {
+                        return h.mode === "group_update" || h.mode === "client_response";
+                      }
+                      return h.mode === selectedCategoryForModal.id;
+                    })
+                    .map((record, idx) => (
+                      <div key={record.id} className="bg-white rounded-3xl p-6 border border-black/5 shadow-sm space-y-4 hover:shadow-md transition-all animate-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${idx * 50}ms` }}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
+                              </span>
+                              {(record.mode === "client_response" || record.content.includes("[RESPOSTA AO CLIENTE]")) && (
+                                <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Resposta ao Cliente</span>
+                              )}
+                              {(record.mode === "group_update" && !record.content.includes("[RESPOSTA AO CLIENTE]")) && (
+                                <span className="bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Envio de Mensagem</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => navigator.clipboard.writeText(record.content.replace("[RESPOSTA AO CLIENTE] ", "").replace("[ENVIO DE MENSAGEM] ", ""))}
+                              className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
+                              title="Copiar conteúdo"
+                            >
+                              <Copy size={14} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setConfirmModal({
+                                  isOpen: true,
+                                  title: "Remover Registro",
+                                  message: "Tem certeza que deseja remover este registro do histórico?",
+                                  type: 'danger',
+                                  onConfirm: async () => {
+                                    const path = `histories/${record.id}`;
+                                    try {
+                                      await deleteDoc(doc(db, "histories", record.id));
+                                    } catch (err) {
+                                      handleFirestoreError(err, OperationType.DELETE, path);
+                                    }
+                                  }
+                                });
+                              }}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="prose prose-sm max-w-none text-gray-600 leading-relaxed">
+                          <ReactMarkdown>
+                            {record.content
+                              .replace("[RESPOSTA AO CLIENTE] ", "")
+                              .replace("[ENVIO DE MENSAGEM] ", "")}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="px-10 py-8 border-t border-black/5 bg-gray-50/50 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setIsCategoryHistoryModalOpen(false);
+                      setSelectedCategoryForModal(null);
+                    }}
+                    className="px-10 py-4 bg-emerald-500 text-white rounded-2xl text-sm font-black hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Profile Modal */}
