@@ -213,6 +213,7 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [dashboardDateFilter, setDashboardDateFilter] = useState<DateFilterType>("current_month");
+  const [dashboardClientFilter, setDashboardClientFilter] = useState<string | null>(null);
   const [dashboardCustomStart, setDashboardCustomStart] = useState<string>("");
   const [dashboardCustomEnd, setDashboardCustomEnd] = useState<string>("");
   const [allHistories, setAllHistories] = useState<HistoryRecord[]>([]);
@@ -473,6 +474,9 @@ export default function App() {
 
   // Filtered Histories for Dashboard
   const filteredDashboardHistories = allHistories.filter(history => {
+    // Client filter
+    if (dashboardClientFilter && history.clientId !== dashboardClientFilter) return false;
+
     if (dashboardDateFilter === "all") return true;
     
     const historyDate = history.createdAt?.toDate ? history.createdAt.toDate() : new Date(history.createdAt);
@@ -1494,7 +1498,20 @@ export default function App() {
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold text-gray-900">Painel de Métricas</h3>
-                    <p className="text-sm text-gray-500">Visão geral da demanda por cliente e categoria.</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-gray-500">Visão geral da demanda por cliente e categoria.</p>
+                      {dashboardClientFilter && (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold animate-in fade-in slide-in-from-left-2">
+                          <span>Filtrando por: {clients.find(c => c.id === dashboardClientFilter)?.name}</span>
+                          <button 
+                            onClick={() => setDashboardClientFilter(null)}
+                            className="hover:bg-emerald-200 rounded-full p-0.5 transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1566,10 +1583,23 @@ export default function App() {
                       <BarChart
                         data={clients.map(client => ({
                           name: client.name,
+                          id: client.id,
                           total: filteredDashboardHistories.filter(h => h.clientId === client.id).length
-                        })).sort((a, b) => b.total - a.total).slice(0, 5)}
+                        }))
+                        .filter(d => d.total > 0)
+                        .sort((a, b) => b.total - a.total)
+                        .slice(0, 10)
+                        .map((d, index) => ({
+                          ...d,
+                          name: `${index + 1}. ${d.name}`
+                        }))}
                         layout="vertical"
                         margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                        onClick={(data: any) => {
+                          if (data && data.activePayload && data.activePayload[0]) {
+                            setDashboardClientFilter(data.activePayload[0].payload.id);
+                          }
+                        }}
                       >
                         <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e5e5" />
                         <XAxis type="number" hide />
@@ -1582,10 +1612,10 @@ export default function App() {
                           tick={{ fontSize: 12, fontWeight: 600, fill: '#4b5563' }}
                         />
                         <Tooltip 
-                          cursor={{ fill: 'transparent' }}
+                          cursor={{ fill: 'rgba(16, 185, 129, 0.05)' }}
                           contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                         />
-                        <Bar dataKey="total" fill="#10b981" radius={[0, 8, 8, 0]} barSize={20} />
+                        <Bar dataKey="total" fill="#10b981" radius={[0, 8, 8, 0]} barSize={20} className="cursor-pointer" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1657,7 +1687,9 @@ export default function App() {
                     <tbody className="divide-y divide-gray-200">
                       {clients.map(client => {
                         const clientHist = filteredDashboardHistories.filter(h => h.clientId === client.id);
-                        const counts = {
+                        return {
+                          id: client.id,
+                          name: client.name,
                           communication: clientHist.filter(h => h.mode === 'communication').length,
                           account_actions: clientHist.filter(h => h.mode === 'account_actions').length,
                           group_update: clientHist.filter(h => h.mode === 'group_update').length,
@@ -1665,12 +1697,18 @@ export default function App() {
                           meeting_summary: clientHist.filter(h => h.mode === 'meeting_summary').length,
                           total: clientHist.length
                         };
-                        
-                        if (counts.total === 0) return null;
-
+                      })
+                      .filter(c => c.total > 0)
+                      .sort((a, b) => b.total - a.total)
+                      .map(counts => {
                         return (
-                          <tr key={client.id} className="text-sm hover:bg-white/50 transition-colors group">
-                            <td className="py-4 pl-4 font-bold text-gray-900">{client.name}</td>
+                          <tr key={counts.id} className="text-sm hover:bg-white/50 transition-colors group">
+                            <td 
+                              className="py-4 pl-4 font-bold text-gray-900 cursor-pointer hover:text-emerald-600 transition-colors"
+                              onClick={() => setDashboardClientFilter(counts.id)}
+                            >
+                              {counts.name}
+                            </td>
                             <td className="py-4 text-center text-gray-600">{counts.communication}</td>
                             <td className="py-4 text-center text-gray-600">{counts.account_actions}</td>
                             <td className="py-4 text-center text-gray-600">{counts.group_update}</td>
@@ -1683,7 +1721,7 @@ export default function App() {
                             </td>
                           </tr>
                         );
-                      }).filter(Boolean)}
+                      })}
                     </tbody>
                   </table>
                 </div>
