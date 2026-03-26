@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   BarChart, 
   Bar, 
@@ -206,6 +207,7 @@ export default function App() {
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [isGenericMode, setIsGenericMode] = useState(false);
   const [clientHistories, setClientHistories] = useState<HistoryRecord[]>([]);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [newClientName, setNewClientName] = useState("");
@@ -717,6 +719,13 @@ export default function App() {
     const client = clients.find(c => c.id === clientId);
     const clientName = client ? client.name : "Remover filtro";
 
+    // If no client is currently selected, skip confirmation
+    if (!selectedClientId && !isGenericMode) {
+      setSelectedClientId(clientId);
+      setIsGenericMode(false);
+      return;
+    }
+
     setConfirmModal({
       isOpen: true,
       title: clientId ? "Alterar Cliente" : "Remover Filtro",
@@ -726,6 +735,7 @@ export default function App() {
       type: 'warning',
       onConfirm: () => {
         setSelectedClientId(clientId);
+        setIsGenericMode(false);
       }
     });
   };
@@ -1105,6 +1115,11 @@ export default function App() {
   };
 
   const handleSummarize = async () => {
+    if (!selectedClientId && !isGenericMode) {
+      setError("Por favor, selecione um cliente ou utilize o modo genérico para continuar.");
+      return;
+    }
+
     const currentText = chatTexts[mode!];
     const currentImages = images[mode!];
     const currentAudio = audios[mode!];
@@ -1655,8 +1670,74 @@ export default function App() {
             </p>
           </section>
 
-          {/* Dashboard Section */}
-          {isDashboardOpen && (
+          <AnimatePresence mode="wait">
+            {!selectedClientId && !isGenericMode ? (
+              <motion.section 
+                key="context-picker"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="max-w-2xl mx-auto bg-white rounded-[40px] p-12 shadow-xl border border-black/5 text-center space-y-8 mt-12"
+              >
+                <div className="w-20 h-20 bg-emerald-100 rounded-[32px] flex items-center justify-center text-emerald-600 mx-auto shadow-lg shadow-emerald-500/10">
+                  <Users size={40} />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-bold text-gray-900">Selecione um cliente para começar</h3>
+                  <p className="text-gray-500">Escolha um cliente da sua lista ou utilize o sistema sem vínculo específico.</p>
+                </div>
+                
+                <div className="flex flex-col gap-6 items-center">
+                  <div className="w-full max-w-md">
+                    <ClientSelector 
+                      clients={clients}
+                      selectedClientId={selectedClientId}
+                      onSelect={handleSelectClient}
+                      onEdit={(client) => {
+                        setConfirmModal({
+                          isOpen: true,
+                          title: "Editar Cliente",
+                          message: `Deseja fazer alterações no cliente "${client.name}"?`,
+                          type: 'warning',
+                          onConfirm: () => {
+                            setEditingClientId(client.id);
+                            setEditingClientName(client.name);
+                            setIsEditingClient(true);
+                          }
+                        });
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-md">
+                    <button 
+                      onClick={() => setIsClientModalOpen(true)}
+                      className="flex-1 w-full py-4 bg-white border border-black/5 text-gray-600 rounded-2xl font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                    >
+                      <UserPlus size={20} className="text-emerald-500" />
+                      Novo Cliente
+                    </button>
+                    <div className="hidden sm:block h-8 w-px bg-gray-200" />
+                    <button 
+                      onClick={() => setIsGenericMode(true)}
+                      className="flex-1 w-full py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-bold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Sparkles size={20} />
+                      Usar sem cliente
+                    </button>
+                  </div>
+                </div>
+              </motion.section>
+            ) : (
+              <motion.div 
+                key="app-content"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-12"
+              >
+                {/* Dashboard Section */}
+                {isDashboardOpen && (
             <section className="bg-white rounded-[40px] p-8 shadow-xl border border-black/5 space-y-8 animate-in zoom-in-95 duration-500">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -1977,63 +2058,76 @@ export default function App() {
             </section>
           )}
 
-          {/* Client Selection & Management */}
-          {user && (
-            <section className="bg-white rounded-3xl p-6 shadow-sm border border-black/5 space-y-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h3 className="text-lg font-bold flex items-center gap-2">
-                    <Users size={20} className="text-emerald-500" />
-                    {selectedClient ? selectedClient.name : "Selecione o Cliente"}
-                  </h3>
-                  <p className="text-xs text-gray-500">O histórico será salvo automaticamente para o cliente selecionado.</p>
-                </div>
-                <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto flex-1">
-                  <ClientSelector 
-                    clients={clients}
-                    selectedClientId={selectedClientId}
-                    onSelect={handleSelectClient}
-                    onEdit={(client) => {
-                      setConfirmModal({
-                        isOpen: true,
-                        title: "Editar Cliente",
-                        message: `Deseja fazer alterações no cliente "${client.name}"?`,
-                        type: 'warning',
-                        onConfirm: () => {
-                          setEditingClientId(client.id);
-                          setEditingClientName(client.name);
-                          setIsEditingClient(true);
-                        }
-                      });
-                    }}
-                  />
-                  <button 
-                    onClick={() => setIsClientModalOpen(true)}
-                    className="p-2.5 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
-                    title="Adicionar Cliente"
-                  >
-                    <UserPlus size={20} />
-                  </button>
-                  {selectedClientId && (
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => handleClearHistory()}
-                        className="p-2.5 bg-white border border-orange-100 text-orange-500 rounded-2xl hover:bg-orange-50 transition-all"
-                        title="Limpar Todo o Histórico"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteClient(selectedClientId)}
-                        className="p-2.5 bg-white border border-red-100 text-red-500 rounded-2xl hover:bg-red-50 transition-all"
-                        title="Remover Cliente"
-                      >
-                        <UserMinus size={20} />
-                      </button>
+                {/* Client Selection & Management */}
+                {user && (
+                  <section className="bg-white rounded-3xl p-6 shadow-sm border border-black/5 space-y-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-bold flex items-center gap-2">
+                          <Users size={20} className="text-emerald-500" />
+                          {selectedClient ? selectedClient.name : (isGenericMode ? "Modo Genérico" : "Selecione o Cliente")}
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          {isGenericMode 
+                            ? "Trabalhando em modo genérico. O histórico não será salvo automaticamente." 
+                            : "O histórico será salvo automaticamente para o cliente selecionado."}
+                        </p>
+                      </div>
+                      <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto flex-1">
+                        <ClientSelector 
+                          clients={clients}
+                          selectedClientId={selectedClientId}
+                          onSelect={handleSelectClient}
+                          onEdit={(client) => {
+                            setConfirmModal({
+                              isOpen: true,
+                              title: "Editar Cliente",
+                              message: `Deseja fazer alterações no cliente "${client.name}"?`,
+                              type: 'warning',
+                              onConfirm: () => {
+                                setEditingClientId(client.id);
+                                setEditingClientName(client.name);
+                                setIsEditingClient(true);
+                              }
+                            });
+                          }}
+                        />
+                        <button 
+                          onClick={() => setIsClientModalOpen(true)}
+                          className="p-2.5 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+                          title="Adicionar Cliente"
+                        >
+                          <UserPlus size={20} />
+                        </button>
+                        {selectedClientId && (
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => handleClearHistory()}
+                              className="p-2.5 bg-white border border-orange-100 text-orange-500 rounded-2xl hover:bg-orange-50 transition-all"
+                              title="Limpar Todo o Histórico"
+                            >
+                              <Trash2 size={20} />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteClient(selectedClientId)}
+                              className="p-2.5 bg-white border border-red-100 text-red-500 rounded-2xl hover:bg-red-50 transition-all"
+                              title="Remover Cliente"
+                            >
+                              <UserMinus size={20} />
+                            </button>
+                          </div>
+                        )}
+                        {isGenericMode && (
+                          <button 
+                            onClick={() => setIsGenericMode(false)}
+                            className="p-2.5 bg-white border border-gray-100 text-gray-500 rounded-2xl hover:bg-gray-50 transition-all"
+                            title="Sair do Modo Genérico"
+                          >
+                            <X size={20} />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
 
               {selectedClientId && (
                 <div className="pt-4 border-t border-black/5 flex items-center justify-between">
@@ -3281,7 +3375,11 @@ export default function App() {
           </div>
         </section>
 
-        {/* Footer */}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Footer */}
         <footer className="pt-12 pb-6 border-t border-black/5 text-center space-y-4">
           <p className="text-sm text-[#9e9e9e]">
             Privacidade em primeiro lugar: Suas conversas e imagens são processadas com segurança.
