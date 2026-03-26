@@ -6,6 +6,9 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-brand-primary: #059669; /* Emerald 600 */
+  --color-brand-secondary: #0f172a; /* Slate 900 - for executive feel */
+  --color-brand-accent: #d97706; /* Amber 600 - for "gold" accents */
 }
 
 @layer base {

@@ -836,7 +836,7 @@ export default function App() {
       }, 100);
     } catch (err) {
       console.error("Error summarizing history:", err);
-      setError("Falha ao gerar o resumo do histórico.");
+      setError("Falha ao gerar os insights do histórico.");
     } finally {
       setIsSummarizingHistory(false);
     }
@@ -915,7 +915,7 @@ export default function App() {
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      const fileName = `Resumo_${clients.find(c => c.id === selectedClientId)?.name || "Cliente"}_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.pdf`;
+      const fileName = `GDT_Insights_💡_${clients.find(c => c.id === selectedClientId)?.name || "Cliente"}_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.pdf`;
       pdf.save(fileName);
     } catch (err) {
       console.error("Error exporting PDF:", err);
@@ -999,9 +999,9 @@ export default function App() {
       ? `Tem certeza que deseja apagar todo o histórico de ${
           modeToClear === "communication" ? "Comunicados no Grupo" : 
           modeToClear === "account_actions" ? "Ações da Conta" : 
-          modeToClear === "group_update" ? "Atualizações" : 
+          modeToClear === "group_update" ? "Visão Executiva do Grupo" : 
           modeToClear === "client_response" ? "Respostas" : 
-          "Resumos de Reunião"
+          "Análise Estratégica de Reunião"
         } deste cliente?`
       : "Tem certeza que deseja apagar TODO o histórico deste cliente? Esta ação não pode ser desfeita.";
 
@@ -1127,7 +1127,7 @@ export default function App() {
         currentAudio ? { data: currentAudio.data, mimeType: currentAudio.mimeType } : undefined,
         currentPdfs.length > 0 ? currentPdfs.map(pdf => ({ data: pdf.data, mimeType: pdf.mimeType })) : undefined
       );
-      const finalResult = result || "Não foi possível gerar um resumo.";
+      const finalResult = result || "Não foi possível gerar um insight estratégico.";
       setSummaries(prev => ({ ...prev, [mode!]: finalResult }));
       
       // Auto-save to history if client is selected
@@ -1391,7 +1391,7 @@ export default function App() {
       account_actions: "Ações da Conta",
       group_update: "Atualização do Grupo",
       client_response: "Resposta ao Cliente",
-      meeting_summary: "Resumo de Reunião"
+      meeting_summary: "Análise Estratégica de Reunião"
     };
 
     return (
@@ -1449,7 +1449,7 @@ export default function App() {
             <p className="text-gray-500 text-sm">
               {isRegistering 
                 ? "Cadastre-se para começar a gerenciar seus parceiros." 
-                : "Entre para acessar suas atualizações e relatórios."}
+                : "Entre para acessar seus insights e análises estratégicas."}
             </p>
           </div>
 
@@ -1590,7 +1590,10 @@ export default function App() {
               <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white">
                 <MessageSquareText size={20} />
               </div>
-              <h1 className="font-semibold text-lg tracking-tight hidden sm:block">Atualizações de parceiros</h1>
+              <div className="flex flex-col">
+                <h1 className="font-bold text-lg tracking-tight hidden sm:block">GDT Insights 💡</h1>
+                <p className="text-[10px] text-gray-500 font-medium hidden sm:block">Dados que viram decisões.</p>
+              </div>
             </div>
             
             <div className="flex items-center gap-4">
@@ -1648,7 +1651,7 @@ export default function App() {
               <span className="text-emerald-600">em segundos.</span>
             </h2>
             <p className="text-lg text-[#9e9e9e] max-w-2xl mx-auto">
-              Transforme conversas, áudios e prints de Ads em atualizações profissionais e respostas estratégicas para seus clientes.
+              Transforme conversas, áudios e prints de Ads em insights estratégicos e decisões baseadas em dados.
             </p>
           </section>
 
@@ -1825,7 +1828,7 @@ export default function App() {
                             { name: 'Ações da Conta', value: filteredDashboardHistories.filter(h => h.mode === 'account_actions').length, color: '#3b82f6' },
                             { name: 'Atualização do Grupo', value: filteredDashboardHistories.filter(h => h.mode === 'group_update').length, color: '#8b5cf6' },
                             { name: 'Resposta ao Cliente', value: filteredDashboardHistories.filter(h => h.mode === 'client_response').length, color: '#f59e0b' },
-                            { name: 'Resumo de Reunião', value: filteredDashboardHistories.filter(h => h.mode === 'meeting_summary').length, color: '#6366f1' },
+                            { name: 'Análise Estratégica de Reunião', value: filteredDashboardHistories.filter(h => h.mode === 'meeting_summary').length, color: '#6366f1' },
                           ].filter(d => d.value > 0)}
                           cx="50%"
                           cy="50%"
@@ -1889,7 +1892,7 @@ export default function App() {
                       const stats = [
                         { label: "Comunicados", value: client.history.filter(h => h.mode === 'communication').length, color: "text-blue-600", bg: "bg-blue-50", icon: LayoutList },
                         { label: "Ações", value: client.history.filter(h => h.mode === 'account_actions').length, color: "text-purple-600", bg: "bg-purple-50", icon: Briefcase },
-                        { label: "Atualizações", value: client.history.filter(h => h.mode === 'group_update' || h.mode === 'client_response').length, color: "text-emerald-600", bg: "bg-emerald-50", icon: Users },
+                        { label: "Visão Executiva", value: client.history.filter(h => h.mode === 'group_update' || h.mode === 'client_response').length, color: "text-emerald-600", bg: "bg-emerald-50", icon: Users },
                         { label: "Reuniões", value: client.history.filter(h => h.mode === 'meeting_summary').length, color: "text-indigo-600", bg: "bg-indigo-50", icon: Calendar },
                       ];
 
@@ -1916,7 +1919,7 @@ export default function App() {
                                 </button>
                                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
                                   <HistoryIcon size={10} />
-                                  {client.updateCount} atualizações no período
+                                  {client.updateCount} insights no período
                                 </div>
                               </div>
                             </div>
@@ -2127,7 +2130,7 @@ export default function App() {
                           className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white rounded-2xl text-sm font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                         >
                           {isSummarizingHistory ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                          Gerar Resumo do Período
+                          Gerar Insights do Período
                         </button>
                         <button
                           onClick={() => handleClearHistory()}
@@ -2145,7 +2148,7 @@ export default function App() {
                         <div className="flex items-center justify-between">
                           <h4 className="font-bold text-emerald-900 flex items-center gap-2">
                             <CheckCircle2 size={18} className="text-emerald-500" />
-                            Relatório Executivo Gerado
+                            GDT Insights 💡 — Relatório Estratégico
                           </h4>
                           <div className="flex gap-2">
                             <button
@@ -2179,8 +2182,9 @@ export default function App() {
                         >
                           <div className="mb-8 pb-6 flex items-center justify-between" style={{ borderBottom: '1px solid #f3f4f6' }}>
                             <div>
-                              <h2 className="text-2xl font-bold" style={{ color: '#111827' }}>Relatório de Atividades</h2>
-                              <p className="text-sm" style={{ color: '#6b7280' }}>Cliente: {clients.find(c => c.id === selectedClientId)?.name}</p>
+                              <h2 className="text-2xl font-bold" style={{ color: '#111827' }}>GDT Insights 💡 — Relatório Estratégico</h2>
+                              <p className="text-sm font-medium" style={{ color: '#6b7280' }}>Visão executiva baseada nos dados selecionados</p>
+                              <p className="text-xs" style={{ color: '#9ca3af' }}>Cliente: {clients.find(c => c.id === selectedClientId)?.name}</p>
                             </div>
                             <div className="text-right">
                               <p className="text-xs font-bold uppercase" style={{ color: '#059669' }}>Período</p>
@@ -2226,7 +2230,7 @@ export default function App() {
                   {/* Selection Controls */}
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-4">
-                      <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest">Atualizações de Parceiros</h4>
+                      <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest">GDT Insights 💡</h4>
                       <div className="h-4 w-px bg-gray-200" />
                       <button 
                         onClick={() => {
@@ -2255,7 +2259,7 @@ export default function App() {
                       { id: "communication", label: "Comunicados no Grupo", icon: LayoutList, color: "blue" },
                       { id: "account_actions", label: "Ações da Conta", icon: Briefcase, color: "purple" },
                       { id: "group_update", label: "Atualização do Grupo", icon: Users, color: "emerald" },
-                      { id: "meeting_summary", label: "Resumo de Reunião", icon: Calendar, color: "indigo" }
+                      { id: "meeting_summary", label: "Análise Estratégica de Reunião", icon: Calendar, color: "indigo" }
                     ].map(category => {
                       const isSelected = selectedSummaryModes.includes(category.id as SummaryMode);
                       const filtered = getFilteredHistory().filter(h => {
@@ -2392,7 +2396,10 @@ export default function App() {
                     <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
                       <Sparkles size={20} />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900">Gerar Resumo do Período</h3>
+                    <div className="flex flex-col">
+                      <h3 className="text-xl font-bold text-gray-900">Gerar Insights do Período</h3>
+                      <p className="text-xs text-gray-500 mt-1">Selecione os dados que você deseja analisar para gerar um insight estratégico personalizado.</p>
+                    </div>
                   </div>
                   <button onClick={() => setIsSummaryOptionsModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all">
                     <X size={24} />
@@ -2447,7 +2454,7 @@ export default function App() {
                         { id: "communication", label: "Comunicados no Grupo" },
                         { id: "account_actions", label: "Ações da Conta" },
                         { id: "group_update", label: "Atualização do Grupo" },
-                        { id: "meeting_summary", label: "Resumo de Reunião" }
+                        { id: "meeting_summary", label: "Análise Estratégica de Reunião" }
                       ].map(cat => (
                         <div key={cat.id} className="flex items-center justify-between">
                           <span className="text-sm text-gray-700">{cat.label}</span>
@@ -2474,7 +2481,7 @@ export default function App() {
                   {summaryOption === "selected" && selectedSummaryModes.length === 0 && (
                     <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold animate-in shake duration-300">
                       <AlertTriangle size={14} />
-                      Selecione ao menos um card para gerar o resumo.
+                      Selecione ao menos um card para gerar os insights.
                     </div>
                   )}
                 </div>
@@ -2486,7 +2493,7 @@ export default function App() {
                     className="w-full py-4 bg-emerald-500 text-white rounded-2xl text-sm font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     <Sparkles size={18} />
-                    Gerar Resumo
+                    Gerar Insights
                   </button>
                   <button
                     onClick={() => setIsSummaryOptionsModalOpen(false)}
@@ -2569,7 +2576,7 @@ export default function App() {
                     </div>
                     <div>
                       <h3 className="text-2xl font-black text-gray-900">{clientForHistoryModal.name}</h3>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Histórico Completo de Atualizações</p>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Central de Inteligência Estratégica</p>
                     </div>
                   </div>
                   <button 
@@ -2611,7 +2618,7 @@ export default function App() {
                                   {record.mode === "communication" ? "Comunicado" :
                                    record.mode === "account_actions" ? "Ação da Conta" :
                                    (record.mode === "group_update" || record.mode === "client_response") ? "Atualização Grupo" :
-                                   "Resumo Reunião"}
+                                   "Análise Reunião"}
                                 </span>
                                 {(record.mode === "client_response" || record.content.includes("[RESPOSTA AO CLIENTE]")) && (
                                   <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Resposta</span>
@@ -2922,7 +2929,7 @@ export default function App() {
               { 
                 id: "communication", 
                 title: "Comunicado grupo", 
-                description: "Resumo executivo para histórico do projeto.", 
+                description: "Visão executiva para histórico do projeto.", 
                 icon: LayoutList, 
                 color: "emerald",
                 action: "Acessar"
@@ -2930,7 +2937,7 @@ export default function App() {
               { 
                 id: "account_actions", 
                 title: "Ações da conta", 
-                description: "Lista técnica de tarefas e ajustes realizados.", 
+                description: "Análise estratégica de tarefas e ajustes realizados.", 
                 icon: Briefcase, 
                 color: "blue",
                 action: "Criar"
@@ -2938,7 +2945,7 @@ export default function App() {
               { 
                 id: "group_update", 
                 title: "Enviar mensagem", 
-                description: "Quando você iniciar conversa, enviar um feedback.", 
+                description: "Quando você iniciar conversa, enviar uma visão executiva.", 
                 icon: Send, 
                 color: "purple",
                 action: "Escrever"
@@ -2946,19 +2953,19 @@ export default function App() {
               { 
                 id: "client_response", 
                 title: "Responder mensagem cliente", 
-                description: "Você responderá a uma mensagem do cliente.", 
+                description: "Você responderá a uma mensagem do cliente com insights.", 
                 icon: MessageCircle, 
                 color: "orange",
                 action: "Responder",
-                extra: "atualizações"
+                extra: "insights"
               },
               { 
                 id: "meeting_summary", 
-                title: "Resumo de reunião", 
-                description: "Gere um resumo estruturado da transcrição da reunião.", 
+                title: "Análise estratégica de reunião", 
+                description: "Gere uma análise estratégica da transcrição da reunião.", 
                 icon: Calendar, 
                 color: "blue",
-                action: "Resumir",
+                action: "Analisar",
                 extra: "transcrição"
               }
             ].map((item) => (
@@ -3014,7 +3021,7 @@ export default function App() {
                         {mode === "communication" ? "Comunicado grupo" :
                          mode === "account_actions" ? "Ações da conta" :
                          mode === "group_update" ? "Enviar mensagem" :
-                         mode === "meeting_summary" ? "Resumo de reunião" :
+                         mode === "meeting_summary" ? "Análise estratégica de reunião" :
                          "Responder mensagem cliente"}
                       </h4>
                     </div>
@@ -3203,7 +3210,7 @@ export default function App() {
                         : mode === "client_response"
                           ? "Responder Mensagem"
                           : mode === "meeting_summary"
-                            ? "Resumo de Reunião"
+                            ? "Análise Estratégica de Reunião"
                             : "Comunicado no grupo"}
               </h3>
               <div className="flex gap-2">
@@ -3263,7 +3270,7 @@ export default function App() {
               { step: "1", title: "Prints de Ads", desc: "Tire prints das métricas do Meta ou Google Ads." },
               { step: "2", title: "Áudios do Cliente", desc: "Anexe áudios com briefings ou feedbacks para transcrição automática." },
               { step: "3", title: "Contexto Extra", desc: "Cole conversas de texto para complementar a análise." },
-              { step: "4", title: "Relatório Pronto", desc: "Gere atualizações profissionais em segundos." }
+              { step: "4", title: "Insights Prontos", desc: "Gere análises estratégicas em segundos." }
             ].map((item) => (
               <div key={item.step} className="space-y-2">
                 <div className="text-3xl font-bold text-emerald-200">{item.step}</div>
@@ -3278,6 +3285,9 @@ export default function App() {
         <footer className="pt-12 pb-6 border-t border-black/5 text-center space-y-4">
           <p className="text-sm text-[#9e9e9e]">
             Privacidade em primeiro lugar: Suas conversas e imagens são processadas com segurança.
+          </p>
+          <p className="text-xs text-[#9e9e9e]/60 font-medium">
+            Criado e desenvolvido por <span className="text-emerald-500">@gabrieldotrafego</span>
           </p>
           <div className="flex justify-center gap-6">
             <a href="#" className="text-xs font-semibold uppercase tracking-widest text-[#9e9e9e] hover:text-emerald-500 transition-colors">Termos</a>

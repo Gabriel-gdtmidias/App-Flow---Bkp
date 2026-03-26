@@ -18,21 +18,21 @@ export async function summarizeChat(
     Use essa transcrição como base (ou complemento ao texto fornecido) para gerar o conteúdo solicitado.
     Se o áudio ou texto for uma instrução direta (ex: "Peça o acesso ao cliente"), trate como um prompt para gerar a mensagem final.
     
-    REGRA CRÍTICA: Não adicione NENHUM texto de introdução ou conclusão (ex: "Aqui está o resumo", "Espero que ajude"). 
+    REGRA CRÍTICA: Não adicione NENHUM texto de introdução ou conclusão (ex: "Aqui estão os insights", "Espero que ajude"). 
     Retorne APENAS o conteúdo estruturado solicitado.
   `;
 
   const fileInstruction = `
     IMPORTANTE: Se arquivos (imagens, PDFs ou outros) forem fornecidos, analise cuidadosamente seus conteúdos.
     Extraia informações relevantes, métricas, textos ou dados visuais que complementem o texto fornecido.
-    Se os arquivos contiverem prints de campanhas ou relatórios, foque nos KPIs e resultados apresentados.
+    Se os arquivos contiverem prints de campanhas ou análises, foque nos KPIs e resultados apresentados.
   `;
 
   const communicationInstruction = `
     Você é um assistente especializado em resumir conversas de grupos de WhatsApp.
     ${audioInstruction}
     ${fileInstruction}
-    Sua tarefa é analisar o log da conversa e/ou os arquivos fornecidos e gerar um resumo estruturado contendo:
+    Sua tarefa é analisar o log da conversa e/ou os arquivos fornecidos e gerar uma visão executiva estruturada contendo:
     
     1. **Visão Geral**: Um parágrafo curto sobre o tema principal da conversa.
     2. **Tópicos Principais**: Uma lista dos assuntos discutidos.
@@ -47,14 +47,14 @@ export async function summarizeChat(
     Você é um especialista em tráfego pago (Meta Ads e Google Ads) e gestor de contas sênior.
     ${audioInstruction}
     ${fileInstruction}
-    Sua tarefa é analisar o log da conversa, o áudio e/ou os arquivos fornecidos para gerar um relatório de "Ações Específicas da Conta".
+    Sua tarefa é analisar o log da conversa, o áudio e/ou os arquivos fornecidos para gerar uma análise estratégica de "Ações Específicas da Conta".
     
     ESTRATÉGIA:
-    - Se o input for uma sugestão sobre **quando** enviar relatórios ou executar ações, incorpore isso como uma recomendação estratégica no relatório.
+    - Se o input for uma sugestão sobre **quando** enviar análises estratégicas ou executar ações, incorpore isso como uma recomendação estratégica na análise.
     - Analise se as métricas justificam o envio imediato de um report ou se devemos aguardar mais dados.
     
-    FOCO DO RELATÓRIO:
-    - **Resumo de Performance**: Visão geral dos resultados.
+    FOCO DA ANÁLISE:
+    - **Insights de Performance**: Visão geral dos resultados.
     - **Ações Executadas**: Ações práticas realizadas na conta.
     
     REGRAS DE FORMATAÇÃO (MONDAY.COM):
@@ -65,7 +65,7 @@ export async function summarizeChat(
     - Evite termos técnicos excessivos. Por exemplo: em vez de "atualização de inventário", use "troca de criativos (anúncios)" ou "atualização das imagens/vídeos".
     
     ESTRUTURA:
-    **RESUMO DE PERFORMANCE**
+    **INSIGHTS DE PERFORMANCE**
     (Visão geral dos resultados baseada no texto/imagem/áudio/PDF)
     
     **AÇÕES EXECUTADAS**
@@ -101,13 +101,13 @@ export async function summarizeChat(
 
     Estrutura OBRIGATÓRIA:
     - Saudação temporal (Bom dia, Boa tarde ou Boa noite)
-    - A frase: "Seguem as atualizações das campanhas:"
+    - A frase: "Seguem as análises das campanhas:"
     - **Ações Realizadas** [Descreva as ações de forma clara e profissional]
     - **Ponto de Atenção** [Destaque pontos que exigem ação ou atenção do cliente]
     - **Próximo Passo** [Indique o que será feito a seguir]
 
     Exemplo de tom e estrutura:
-    Bom dia! Seguem as atualizações das campanhas:
+    Bom dia! Seguem as análises das campanhas:
 
     **Ações Realizadas** Implementamos novos criativos em vídeo...
 
@@ -153,7 +153,7 @@ export async function summarizeChat(
 
   const meetingSummaryInstruction = `
     Você é um assistente executivo e gestor de projetos sênior.
-    Sua tarefa é analisar a transcrição de uma reunião fornecida e gerar um resumo estruturado e profissional para ser enviado ao cliente.
+    Sua tarefa é analisar a transcrição de uma reunião fornecida e gerar uma análise estratégica e profissional para ser enviada ao cliente.
     
     ESTRUTURA OBRIGATÓRIA:
     1. **Data da Reunião**: Extraia a data da transcrição se disponível, caso contrário, use a data atual (${new Date().toLocaleDateString('pt-BR')}).
@@ -161,7 +161,7 @@ export async function summarizeChat(
     3. **Tarefas Combinadas (Action Items)**: Liste em tópicos claros e objetivos todas as tarefas, prazos e responsáveis que foram definidos.
     
     DIRETRIZES:
-    - **Clareza e Objetividade**: O resumo deve ser fácil de ler e direto ao ponto.
+    - **Clareza e Objetividade**: A análise deve ser fácil de ler e direto ao ponto.
     - **Tom Profissional**: Use uma linguagem executiva, polida e organizada.
     - **Foco no Cliente**: O conteúdo deve ser preparado pensando no que é relevante para o cliente saber e acompanhar.
     - **Sem Emojis**: Não utilize emoticons ou emojis.
@@ -179,7 +179,7 @@ export async function summarizeChat(
 
   const systemInstruction = modeInstructions[mode];
 
-  const parts: any[] = [{ text: chatText || "Analise os arquivos anexos para gerar o relatório/resumo." }];
+  const parts: any[] = [{ text: chatText || "Analise os arquivos anexos para gerar a análise estratégica/insights." }];
   
   if (imagesData && imagesData.length > 0) {
     imagesData.forEach(img => {
@@ -225,13 +225,13 @@ export async function summarizeChat(
     return response.text;
   } catch (error) {
     console.error("Error summarizing chat:", error);
-    throw new Error("Falha ao gerar o resumo. Verifique se o texto ou arquivos são válidos.");
+    throw new Error("Falha ao gerar os insights. Verifique se o texto ou arquivos são válidos.");
   }
 }
 
 export async function transcribeAudio(audioData: { data: string; mimeType: string }) {
   const model = "gemini-3-flash-preview";
-  const systemInstruction = "Você é um assistente de transcrição altamente preciso. Sua única tarefa é transcrever o áudio fornecido palavra por palavra, sem adicionar comentários, resumos ou formatação extra. Apenas o texto falado.";
+  const systemInstruction = "Você é um assistente de transcrição altamente preciso. Sua única tarefa é transcrever o áudio fornecido palavra por palavra, sem adicionar comentários, insights ou formatação extra. Apenas o texto falado.";
   
   const parts = [
     { text: "Transcreva este áudio exatamente como falado." },
@@ -267,25 +267,28 @@ export async function summarizeHistory(
 ) {
   const model = "gemini-3-flash-preview";
   const systemInstruction = `
-    Você é um especialista em análise estratégica e geração de relatórios executivos para dashboards SaaS.
-    Sua função é gerar um RELATÓRIO EXECUTIVO PERSONALIZADO, baseado EXCLUSIVAMENTE nos cards selecionados pelo usuário.
+    Você é um especialista em análise estratégica e geração de análises executivas para dashboards SaaS.
+    Sua função é gerar um GDT Insights — Relatório Estratégico, baseado EXCLUSIVAMENTE nos cards selecionados pelo usuário.
+    Visão executiva baseada nos dados selecionados.
 
     🎯 CONTEXTO:
-    O sistema possui os seguintes tipos de cards:
+    O sistema é uma Central de Inteligência Estratégica.
+    Os seguintes tipos de cards estão disponíveis:
     - COMUNICADOS NO GRUPO (communication)
     - AÇÕES DA CONTA (account_actions)
-    - ATUALIZAÇÃO DO GRUPO (group_update e client_response)
-    - RESUMO DE REUNIÃO (meeting_summary)
+    - VISÃO EXECUTIVA DO GRUPO (group_update e client_response)
+    - ANÁLISE ESTRATÉGICA DE REUNIÃO (meeting_summary)
 
     🚨 REGRA CRÍTICA (OBRIGATÓRIA):
     - O relatório NÃO pode ser genérico.
     - O relatório DEVE ser baseado SOMENTE nos cards fornecidos no input.
-    - Se apenas 1 card for fornecido → gerar resumo SOMENTE dele.
+    - Se apenas 1 card for fornecido → gerar insights SOMENTE dele.
     - Se múltiplos cards forem fornecidos → consolidar apenas esses.
     - Se "todos" forem fornecidos → incluir todos os cards.
 
     📅 CABEÇALHO DO RELATÓRIO:
-    - Título: **RELATÓRIO EXECUTIVO DO PERÍODO**
+    - Título: **GDT Insights — Relatório Estratégico**
+    - Subtítulo: **Visão executiva baseada nos dados selecionados**
     - Cliente: ${clientName}
     - Período: ${period}
 
@@ -294,7 +297,7 @@ export async function summarizeHistory(
     1. **Período Analisado**
     Descrição breve considerando apenas os dados disponíveis nos cards selecionados.
 
-    2. **Resumo por Cards Selecionados**
+    2. **Insights por Cards Selecionados**
     ⚠️ Cada tipo de card deve virar uma seção própria no relatório.
 
     ### 📌 REGRA POR TIPO DE CARD:
@@ -307,7 +310,7 @@ export async function summarizeHistory(
     - Organizar por tipo de ação: Rastreamento, Diagnóstico, Configuração.
     - Explicar impacto estratégico (não só descritivo).
 
-    🔹 Se o card for "Atualização do Grupo" (group_update ou client_response):
+    🔹 Se o card for "Visão Executiva do Grupo" (group_update ou client_response):
     ⚠️ REGRA ESPECIAL OBRIGATÓRIA: Dividir em duas partes:
     **Resposta ao Cliente**
     - O que foi respondido / tratado.
@@ -316,7 +319,7 @@ export async function summarizeHistory(
     - O que foi enviado.
     - Objetivo da comunicação.
 
-    🔹 Se o card for "Resumo de Reunião" (meeting_summary):
+    🔹 Se o card for "Análise Estratégica de Reunião" (meeting_summary):
     - Principais pontos discutidos.
     - Decisões tomadas.
     - Próximos passos.
@@ -328,7 +331,7 @@ export async function summarizeHistory(
     - Oportunidades identificadas.
     - Próximos passos estratégicos.
 
-    🧠 INTELIGÊNCIA DO RESUMO:
+    🧠 INTELIGÊNCIA DOS INSIGHTS:
     - Não repetir frases padrão.
     - Não inventar informações.
     - Não incluir cards não selecionados.
@@ -342,7 +345,7 @@ export async function summarizeHistory(
     - Texto organizado e escaneável (Markdown).
 
     🚫 ERROS PROIBIDOS:
-    - Gerar relatório padrão genérico.
+    - Gerar análise padrão genérica.
     - Misturar cards não selecionados.
     - Ignorar estrutura por tipo de card.
     - Não separar "Atualização do Grupo" corretamente.
@@ -365,7 +368,7 @@ export async function summarizeHistory(
     return response.text;
   } catch (error) {
     console.error("Error summarizing history:", error);
-    throw new Error("Falha ao gerar o resumo do histórico.");
+    throw new Error("Falha ao gerar os insights do histórico.");
   }
 }
 
@@ -375,7 +378,7 @@ export async function generateGroupMessageFromHistory(
   const model = "gemini-3-flash-preview";
   const systemInstruction = `
     Você é um gestor de tráfego sênior.
-    Sua tarefa é transformar um resumo técnico de atividades em uma MENSAGEM DE ATUALIZAÇÃO para o grupo de WhatsApp do cliente.
+    Sua tarefa é transformar uma análise estratégica de atividades em uma MENSAGEM DE ATUALIZAÇÃO para o grupo de WhatsApp do cliente.
     
     DIRETRIZES:
     - Seja conciso, profissional e amigável.
@@ -390,7 +393,7 @@ export async function generateGroupMessageFromHistory(
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: [{ parts: [{ text: `Gere uma mensagem de WhatsApp baseada neste resumo de atividades:\n\n${historySummary}` }] }],
+      contents: [{ parts: [{ text: `Gere uma mensagem de WhatsApp baseada nesta análise de atividades:\n\n${historySummary}` }] }],
       config: {
         systemInstruction,
         temperature: 0.5,
