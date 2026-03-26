@@ -3039,7 +3039,7 @@ export default function App() {
               { 
                 id: "group_update", 
                 title: "Enviar mensagem", 
-                description: "Quando você iniciar conversa, enviar uma visão executiva.", 
+                description: "Gere mensagens de atualização e feedback estratégico para seus clientes.", 
                 icon: Send, 
                 color: "purple",
                 action: "Escrever"
