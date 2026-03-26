@@ -100,16 +100,19 @@ export async function summarizeChat(
     - **Fechamento**: NUNCA utilize frases como "Seguimos focados". Prefira encerrar com "Se precisar de algo, estou à disposição" ou algo similar que transmita abertura e suporte.
 
     Estrutura OBRIGATÓRIA:
-    1. Saudação temporal (Bom dia, Boa tarde ou Boa noite)
-    2. A frase: "Seguem as atualizações das campanhas:"
-    3. **Ações Realizadas** [Descreva as ações de forma clara e profissional]
-    4. **Ponto de Atenção** [Destaque pontos que exigem ação ou atenção do cliente]
-    5. **Próximo Passo** [Indique o que será feito a seguir]
+    - Saudação temporal (Bom dia, Boa tarde ou Boa noite)
+    - A frase: "Seguem as atualizações das campanhas:"
+    - **Ações Realizadas** [Descreva as ações de forma clara e profissional]
+    - **Ponto de Atenção** [Destaque pontos que exigem ação ou atenção do cliente]
+    - **Próximo Passo** [Indique o que será feito a seguir]
 
     Exemplo de tom e estrutura:
     Bom dia! Seguem as atualizações das campanhas:
+
     **Ações Realizadas** Implementamos novos criativos em vídeo...
+
     **Ponto de Atenção** Precisamos do link do produto...
+
     **Próximo Passo** Assim que recebermos, ativamos...
 
     Tom de voz:
@@ -259,27 +262,90 @@ export async function transcribeAudio(audioData: { data: string; mimeType: strin
 
 export async function summarizeHistory(
   historyRecords: { mode: SummaryMode; content: string; createdAt: string }[],
-  period: string
+  period: string,
+  clientName: string
 ) {
   const model = "gemini-3-flash-preview";
   const systemInstruction = `
-    Você é um gestor de contas sênior e estrategista de tráfego pago.
-    Sua tarefa é analisar um conjunto de registros de histórico de atividades de um cliente e gerar um RELATÓRIO EXECUTIVO DE PERÍODO (${period}).
-    
-    ESTRUTURA OBRIGATÓRIA DO RELATÓRIO:
-    1. **Período Analisado**: Mencione claramente o período: ${period}.
-    2. **Resumo por Etapas**:
-       - **Comunicados no Grupo**: Se houver, resuma os principais comunicados. Se não houver, mencione "Sem comunicados no período".
-       - **Ações na Conta**: Se houver, resuma as ações executadas. Se não houver, mencione "Sem ações registradas na conta".
-       - **Atualizações do Grupo**: Se houver, resuma tanto as atualizações enviadas (identificadas por [ENVIO DE MENSAGEM]) quanto as respostas enviadas ao cliente (identificadas por [RESPOSTA AO CLIENTE]). Unifique essas duas informações nesta seção de "Atualizações do Grupo". Se não houver nenhuma das duas, mencione "Sem atualizações de grupo".
-    3. **Conclusão Estratégica**: Um parágrafo final sobre a saúde da conta e próximos passos baseados no histórico.
+    Você é um especialista em análise estratégica e geração de relatórios executivos para dashboards SaaS.
+    Sua função é gerar um RELATÓRIO EXECUTIVO PERSONALIZADO, baseado EXCLUSIVAMENTE nos cards selecionados pelo usuário.
 
-    DIRETRIZES:
-    - O tom deve ser profissional, analítico e focado em valor estratégico.
-    - Formate em Markdown elegante.
-    - Seja conciso mas informativo em cada etapa.
-    
-    REGRA: Não adicione introduções ou conclusões genéricas fora da estrutura solicitada.
+    🎯 CONTEXTO:
+    O sistema possui os seguintes tipos de cards:
+    - COMUNICADOS NO GRUPO (communication)
+    - AÇÕES DA CONTA (account_actions)
+    - ATUALIZAÇÃO DO GRUPO (group_update e client_response)
+    - RESUMO DE REUNIÃO (meeting_summary)
+
+    🚨 REGRA CRÍTICA (OBRIGATÓRIA):
+    - O relatório NÃO pode ser genérico.
+    - O relatório DEVE ser baseado SOMENTE nos cards fornecidos no input.
+    - Se apenas 1 card for fornecido → gerar resumo SOMENTE dele.
+    - Se múltiplos cards forem fornecidos → consolidar apenas esses.
+    - Se "todos" forem fornecidos → incluir todos os cards.
+
+    📅 CABEÇALHO DO RELATÓRIO:
+    - Título: **RELATÓRIO EXECUTIVO DO PERÍODO**
+    - Cliente: ${clientName}
+    - Período: ${period}
+
+    📊 ESTRUTURA DO RELATÓRIO:
+
+    1. **Período Analisado**
+    Descrição breve considerando apenas os dados disponíveis nos cards selecionados.
+
+    2. **Resumo por Cards Selecionados**
+    ⚠️ Cada tipo de card deve virar uma seção própria no relatório.
+
+    ### 📌 REGRA POR TIPO DE CARD:
+
+    🔹 Se o card for "Comunicados no Grupo" (communication):
+    - Listar ações comunicadas.
+    - Sintetizar decisões e alinhamentos.
+
+    🔹 Se o card for "Ações da Conta" (account_actions):
+    - Organizar por tipo de ação: Rastreamento, Diagnóstico, Configuração.
+    - Explicar impacto estratégico (não só descritivo).
+
+    🔹 Se o card for "Atualização do Grupo" (group_update ou client_response):
+    ⚠️ REGRA ESPECIAL OBRIGATÓRIA: Dividir em duas partes:
+    **Resposta ao Cliente**
+    - O que foi respondido / tratado.
+    - Contexto da interação.
+    **Envio de Mensagem**
+    - O que foi enviado.
+    - Objetivo da comunicação.
+
+    🔹 Se o card for "Resumo de Reunião" (meeting_summary):
+    - Principais pontos discutidos.
+    - Decisões tomadas.
+    - Próximos passos.
+
+    3. **Conclusão Estratégica (INTELIGENTE)**
+    Gerar conclusão baseada SOMENTE nos cards selecionados:
+    - Situação atual da conta.
+    - Principais gargalos.
+    - Oportunidades identificadas.
+    - Próximos passos estratégicos.
+
+    🧠 INTELIGÊNCIA DO RESUMO:
+    - Não repetir frases padrão.
+    - Não inventar informações.
+    - Não incluir cards não selecionados.
+    - Priorizar clareza e visão estratégica.
+    - Escrever como especialista (nível consultoria).
+
+    📌 FORMATAÇÃO:
+    - Usar títulos claros por card.
+    - Separar seções.
+    - Linguagem profissional.
+    - Texto organizado e escaneável (Markdown).
+
+    🚫 ERROS PROIBIDOS:
+    - Gerar relatório padrão genérico.
+    - Misturar cards não selecionados.
+    - Ignorar estrutura por tipo de card.
+    - Não separar "Atualização do Grupo" corretamente.
   `;
 
   const historyText = historyRecords.map(r => 
@@ -289,7 +355,7 @@ export async function summarizeHistory(
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: [{ parts: [{ text: `Aqui está o histórico do período ${period}:\n\n${historyText}` }] }],
+      contents: [{ parts: [{ text: `Aqui está o histórico do período ${period} para o cliente ${clientName}:\n\n${historyText}` }] }],
       config: {
         systemInstruction,
         temperature: 0.3,

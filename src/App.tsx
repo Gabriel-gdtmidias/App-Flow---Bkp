@@ -63,6 +63,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
+  sendPasswordResetEmail,
   signOut,
   signInWithPopup,
   GoogleAuthProvider,
@@ -202,6 +203,7 @@ export default function App() {
   const [tempProfilePic, setTempProfilePic] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authSuccess, setAuthSuccess] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [clientHistories, setClientHistories] = useState<HistoryRecord[]>([]);
@@ -229,6 +231,9 @@ export default function App() {
   const [selectedCategoryForModal, setSelectedCategoryForModal] = useState<{ id: string; label: string; icon: any; color: string } | null>(null);
   const [isCategoryHistoryModalOpen, setIsCategoryHistoryModalOpen] = useState(false);
   const [expandedMetricsClientId, setExpandedMetricsClientId] = useState<string | null>(null);
+  const [selectedSummaryModes, setSelectedSummaryModes] = useState<SummaryMode[]>(["communication", "account_actions", "group_update", "meeting_summary"]);
+  const [isSummaryOptionsModalOpen, setIsSummaryOptionsModalOpen] = useState(false);
+  const [summaryOption, setSummaryOption] = useState<"all" | "selected">("all");
   
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -550,6 +555,7 @@ export default function App() {
     if (!email || !password) return;
     setAuthLoading(true);
     setAuthError(null);
+    setAuthSuccess(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
@@ -558,6 +564,29 @@ export default function App() {
         setAuthError("E-mail ou senha incorretos. Verifique seus dados ou crie uma conta se ainda não tiver uma.");
       } else {
         setAuthError("Falha ao entrar. Verifique sua conexão ou tente novamente mais tarde.");
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      setAuthError("Por favor, insira seu e-mail para redefinir a senha.");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    setAuthSuccess(null);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setAuthSuccess("E-mail de redefinição enviado! Verifique sua caixa de entrada.");
+    } catch (err: any) {
+      console.error("Reset password error:", err);
+      if (err.code === 'auth/user-not-found') {
+        setAuthError("E-mail não encontrado.");
+      } else {
+        setAuthError("Falha ao enviar e-mail de redefinição. Tente novamente.");
       }
     } finally {
       setAuthLoading(false);
@@ -749,18 +778,34 @@ export default function App() {
     }
   };
 
-  const handleSummarizeHistory = async () => {
+  const handleSummarizeHistory = () => {
+    if (!user || !selectedClientId || clientHistories.length === 0) return;
+    setIsSummaryOptionsModalOpen(true);
+  };
+
+  const executeSummarizeHistory = async () => {
     if (!user || !selectedClientId || clientHistories.length === 0) return;
 
     setIsSummarizingHistory(true);
     setHistorySummary(null);
     setGroupMessage(null);
     setError(null);
+    setIsSummaryOptionsModalOpen(false);
 
     try {
-      const filteredHistory = getFilteredHistory();
+      let filteredHistory = getFilteredHistory();
+      
+      if (summaryOption === "selected") {
+        filteredHistory = filteredHistory.filter(h => {
+          if (selectedSummaryModes.includes("group_update")) {
+            return selectedSummaryModes.includes(h.mode as SummaryMode) || h.mode === "client_response";
+          }
+          return selectedSummaryModes.includes(h.mode as SummaryMode);
+        });
+      }
+
       if (filteredHistory.length === 0) {
-        setError("Nenhum registro encontrado para o período selecionado.");
+        setError("Nenhum registro encontrado para a seleção atual.");
         return;
       }
 
@@ -777,8 +822,18 @@ export default function App() {
         createdAt: h.createdAt?.toDate().toLocaleString('pt-BR') || ""
       }));
 
-      const summary = await summarizeHistory(records, periodText);
+      const summary = await summarizeHistory(
+        records, 
+        periodText, 
+        clients.find(c => c.id === selectedClientId)?.name || "Cliente"
+      );
       setHistorySummary(summary);
+      
+      // Scroll to result
+      setTimeout(() => {
+        const element = document.getElementById("history-summary-result");
+        if (element) element.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     } catch (err) {
       console.error("Error summarizing history:", err);
       setError("Falha ao gerar o resumo do histórico.");
@@ -1424,7 +1479,18 @@ export default function App() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold uppercase text-gray-400 ml-1">Senha</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase text-gray-400 ml-1">Senha</label>
+                {!isRegistering && (
+                  <button 
+                    type="button"
+                    onClick={handleResetPassword}
+                    className="text-[10px] font-bold text-emerald-600 hover:underline uppercase tracking-wider transition-all"
+                  >
+                    Esqueceu a senha?
+                  </button>
+                )}
+              </div>
               <input 
                 type="password" 
                 required
@@ -1439,6 +1505,13 @@ export default function App() {
               <div className="bg-red-50 border border-red-100 text-red-600 p-3 rounded-xl text-xs font-medium flex items-center gap-2 animate-in shake-1">
                 <AlertTriangle size={14} />
                 {authError}
+              </div>
+            )}
+
+            {authSuccess && (
+              <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 p-3 rounded-xl text-xs font-medium flex items-center gap-2 animate-in fade-in">
+                <CheckCircle2 size={14} />
+                {authSuccess}
               </div>
             )}
 
@@ -1487,13 +1560,15 @@ export default function App() {
             Google
           </button>
 
-          <div className="text-center">
+          <div className="text-center pt-2">
             <button 
               onClick={() => {
                 setIsRegistering(!isRegistering);
                 setAuthError(null);
+                setAuthSuccess(null);
+                setPassword("");
               }}
-              className="text-sm font-medium text-emerald-600 hover:underline"
+              className="text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:underline transition-all"
             >
               {isRegistering 
                 ? "Já tem uma conta? Entre aqui" 
@@ -2066,7 +2141,7 @@ export default function App() {
 
                     {/* History Summary Result */}
                     {historySummary && (
-                      <div className="bg-white rounded-2xl p-6 border border-emerald-100 space-y-6 animate-in zoom-in-95 duration-300">
+                      <div id="history-summary-result" className="bg-white rounded-2xl p-6 border border-emerald-100 space-y-6 animate-in zoom-in-95 duration-300">
                         <div className="flex items-center justify-between">
                           <h4 className="font-bold text-emerald-900 flex items-center gap-2">
                             <CheckCircle2 size={18} className="text-emerald-500" />
@@ -2148,6 +2223,32 @@ export default function App() {
                     )}
                   </div>
 
+                  {/* Selection Controls */}
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest">Atualizações de Parceiros</h4>
+                      <div className="h-4 w-px bg-gray-200" />
+                      <button 
+                        onClick={() => {
+                          if (selectedSummaryModes.length === 4) {
+                            setSelectedSummaryModes([]);
+                          } else {
+                            setSelectedSummaryModes(["communication", "account_actions", "group_update", "meeting_summary"]);
+                          }
+                        }}
+                        className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 transition-colors"
+                      >
+                        <div className={cn(
+                          "w-4 h-4 rounded border flex items-center justify-center transition-all",
+                          selectedSummaryModes.length === 4 ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-gray-300"
+                        )}>
+                          {selectedSummaryModes.length === 4 && <CheckCircle2 size={10} />}
+                        </div>
+                        {selectedSummaryModes.length === 4 ? "Desmarcar Todos" : "Selecionar Todos"}
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Categorized History Boxes */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[
@@ -2156,6 +2257,7 @@ export default function App() {
                       { id: "group_update", label: "Atualização do Grupo", icon: Users, color: "emerald" },
                       { id: "meeting_summary", label: "Resumo de Reunião", icon: Calendar, color: "indigo" }
                     ].map(category => {
+                      const isSelected = selectedSummaryModes.includes(category.id as SummaryMode);
                       const filtered = getFilteredHistory().filter(h => {
                         if (category.id === "group_update") {
                           return h.mode === "group_update" || h.mode === "client_response";
@@ -2166,7 +2268,31 @@ export default function App() {
                       const lastUpdate = filtered[0]; // Already sorted by createdAt desc in useEffect
                       
                       return (
-                        <div key={category.id} className="bg-white rounded-[32px] border border-black/5 overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all group">
+                        <div 
+                          key={category.id} 
+                          className={cn(
+                            "bg-white rounded-[32px] border overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all group relative",
+                            isSelected ? "border-emerald-500/30 ring-1 ring-emerald-500/10" : "border-black/5"
+                          )}
+                        >
+                          {/* Selection Checkbox */}
+                          <button
+                            onClick={() => {
+                              setSelectedSummaryModes(prev => 
+                                prev.includes(category.id as SummaryMode)
+                                  ? prev.filter(m => m !== category.id)
+                                  : [...prev, category.id as SummaryMode]
+                              );
+                            }}
+                            className="absolute top-4 right-4 z-10 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all"
+                            style={{ 
+                              backgroundColor: isSelected ? '#10b981' : 'white',
+                              borderColor: isSelected ? '#10b981' : '#e5e7eb'
+                            }}
+                          >
+                            {isSelected && <CheckCircle2 size={14} className="text-white" />}
+                          </button>
+
                           <div className={cn(
                             "px-6 py-5 flex items-center justify-between border-b border-black/5",
                             category.color === "blue" ? "bg-blue-50/30" :
@@ -2185,21 +2311,12 @@ export default function App() {
                                 <category.icon size={20} />
                               </div>
                               <div>
-                                <h5 className="font-black text-sm text-gray-900 leading-tight">{category.label}</h5>
+                                <h5 className="font-black text-sm text-gray-900 leading-tight pr-8">{category.label}</h5>
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                                   {filtered.length} registros
                                 </span>
                               </div>
                             </div>
-                            <button 
-                              onClick={() => {
-                                setSelectedCategoryForModal(category);
-                                setIsCategoryHistoryModalOpen(true);
-                              }}
-                              className="px-4 py-2 bg-white text-gray-400 hover:text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-black/5 hover:border-emerald-100"
-                            >
-                              Ver todos
-                            </button>
                           </div>
                           
                           <div className="flex-1 p-6 bg-gray-50/30">
@@ -2234,15 +2351,26 @@ export default function App() {
                                   </div>
                                   <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent" />
                                 </div>
-                                <button 
-                                  onClick={() => {
-                                    setSelectedHistoryRecord(lastUpdate);
-                                    setIsHistoryDetailModalOpen(true);
-                                  }}
-                                  className="w-full py-2.5 bg-white border border-black/5 text-gray-500 hover:text-emerald-600 hover:border-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                >
-                                  Ver Detalhes
-                                </button>
+                                <div className="flex gap-2">
+                                  <button 
+                                    onClick={() => {
+                                      setSelectedHistoryRecord(lastUpdate);
+                                      setIsHistoryDetailModalOpen(true);
+                                    }}
+                                    className="flex-1 py-2.5 bg-white border border-black/5 text-gray-500 hover:text-emerald-600 hover:border-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                  >
+                                    Ver Detalhes
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      setSelectedCategoryForModal(category);
+                                      setIsCategoryHistoryModalOpen(true);
+                                    }}
+                                    className="px-4 py-2.5 bg-white text-gray-400 hover:text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-black/5 hover:border-emerald-100"
+                                  >
+                                    Ver Todos
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -2253,6 +2381,122 @@ export default function App() {
                 </div>
               )}
             </section>
+          )}
+
+          {/* Summary Options Modal */}
+          {isSummaryOptionsModalOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+              <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
+                <div className="px-8 py-6 border-b border-black/5 flex items-center justify-between bg-gray-50/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                      <Sparkles size={20} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">Gerar Resumo do Período</h3>
+                  </div>
+                  <button onClick={() => setIsSummaryOptionsModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all">
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                <div className="p-8 space-y-6">
+                  <div className="space-y-4">
+                    <button 
+                      onClick={() => setSummaryOption("all")}
+                      className={cn(
+                        "w-full p-4 rounded-2xl border-2 text-left transition-all flex items-center justify-between group",
+                        summaryOption === "all" ? "border-emerald-500 bg-emerald-50/50" : "border-gray-100 hover:border-emerald-200"
+                      )}
+                    >
+                      <div>
+                        <p className="font-bold text-gray-900">Resumir todos os cards</p>
+                        <p className="text-xs text-gray-500">Inclui todas as categorias de atualização</p>
+                      </div>
+                      <div className={cn(
+                        "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                        summaryOption === "all" ? "border-emerald-500 bg-emerald-500" : "border-gray-300"
+                      )}>
+                        {summaryOption === "all" && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => setSummaryOption("selected")}
+                      className={cn(
+                        "w-full p-4 rounded-2xl border-2 text-left transition-all flex items-center justify-between group",
+                        summaryOption === "selected" ? "border-emerald-500 bg-emerald-50/50" : "border-gray-100 hover:border-emerald-200"
+                      )}
+                    >
+                      <div>
+                        <p className="font-bold text-gray-900">Resumir cards selecionados</p>
+                        <p className="text-xs text-gray-500">Apenas as categorias marcadas no dashboard</p>
+                      </div>
+                      <div className={cn(
+                        "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                        summaryOption === "selected" ? "border-emerald-500 bg-emerald-500" : "border-gray-300"
+                      )}>
+                        {summaryOption === "selected" && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
+                  </div>
+
+                  {summaryOption === "selected" && (
+                    <div className="bg-gray-50 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Categorias Selecionadas</p>
+                      {[
+                        { id: "communication", label: "Comunicados no Grupo" },
+                        { id: "account_actions", label: "Ações da Conta" },
+                        { id: "group_update", label: "Atualização do Grupo" },
+                        { id: "meeting_summary", label: "Resumo de Reunião" }
+                      ].map(cat => (
+                        <div key={cat.id} className="flex items-center justify-between">
+                          <span className="text-sm text-gray-700">{cat.label}</span>
+                          <button
+                            onClick={() => {
+                              setSelectedSummaryModes(prev => 
+                                prev.includes(cat.id as SummaryMode)
+                                  ? prev.filter(m => m !== cat.id)
+                                  : [...prev, cat.id as SummaryMode]
+                              );
+                            }}
+                            className={cn(
+                              "w-5 h-5 rounded border flex items-center justify-center transition-all",
+                              selectedSummaryModes.includes(cat.id as SummaryMode) ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-gray-300"
+                            )}
+                          >
+                            {selectedSummaryModes.includes(cat.id as SummaryMode) && <CheckCircle2 size={12} />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {summaryOption === "selected" && selectedSummaryModes.length === 0 && (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold animate-in shake duration-300">
+                      <AlertTriangle size={14} />
+                      Selecione ao menos um card para gerar o resumo.
+                    </div>
+                  )}
+                </div>
+
+                <div className="px-8 py-6 border-t border-black/5 bg-gray-50/50 flex flex-col gap-3">
+                  <button
+                    onClick={executeSummarizeHistory}
+                    disabled={summaryOption === "selected" && selectedSummaryModes.length === 0}
+                    className="w-full py-4 bg-emerald-500 text-white rounded-2xl text-sm font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <Sparkles size={18} />
+                    Gerar Resumo
+                  </button>
+                  <button
+                    onClick={() => setIsSummaryOptionsModalOpen(false)}
+                    className="w-full py-3 text-gray-500 text-xs font-bold hover:text-gray-700 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* History Detail Modal */}
@@ -3262,3 +3506,5 @@ const ClientSelector = ({
     </div>
   );
 };
+
+
