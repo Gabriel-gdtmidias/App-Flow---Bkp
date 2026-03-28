@@ -195,7 +195,11 @@ export async function summarizeChat(
     ${fileInstruction}
 
     Objetivo:
-    Analisar prints de conversas de WhatsApp para identificar padrões, falhas e oportunidades de aumento de conversão no nicho informado.
+    Analisar prints de conversas de WhatsApp OU o objetivo de atendimento descrito pelo usuário para sugerir uma estrutura de atendimento humanizada, personalizada e de alta conversão no nicho informado.
+
+    Cenários:
+    1. Se houver prints/conversas: Analise os padrões, identifique falhas e sugira melhorias específicas baseadas no que foi lido.
+    2. Se houver apenas um objetivo/descrição: Crie do zero uma estrutura de atendimento estratégica para aquele nicho e objetivo.
 
     Sua resposta DEVE conter duas versões separadas EXATAMENTE pela tag [SPLIT_VERSION].
     NÃO inclua os títulos "--- PARTE 1 ---" ou "--- PARTE 2 ---" no conteúdo gerado.
@@ -204,35 +208,35 @@ export async function summarizeChat(
     Esta versão deve ser profunda, analítica e estratégica.
 
     Estrutura:
-    1. **Diagnóstico Geral**
-       - Resumo do nível do atendimento.
+    1. **Diagnóstico Geral / Visão Estratégica**
+       - Resumo do nível do atendimento (se houver conversas) ou análise do potencial do objetivo (se for novo).
        - Avaliação do potencial de conversão.
 
-    2. **Pontos Positivos**
+    2. **Pontos Positivos (se houver conversas)**
        - O que está funcionando bem.
-       - Boas práticas identificadas nas conversas.
+       - Boas práticas identificadas.
 
-    3. **Pontos de Melhoria**
-       - Onde as vendas estão sendo perdidas.
-       - Falhas de abordagem, falta de condução, objeções mal trabalhadas, ausência de CTA.
+    3. **Pontos de Melhoria / Desafios do Nicho**
+       - Onde as vendas estão sendo perdidas ou quais os maiores obstáculos desse nicho.
+       - Falhas de abordagem, falta de condução, objeções comuns.
 
-    4. **Erros Críticos**
+    4. **Erros Críticos a Evitar**
        - Erros que impactam diretamente na conversão (demora, resposta fria, falta de personalização, quebra de fluxo).
 
-    5. **Oportunidades de Otimização**
-       - Ajustes práticos para ganho imediato.
-       - Sugestões estratégicas.
+    5. **Estrutura de Atendimento Sugerida**
+       - Uma jornada completa do cliente no WhatsApp, do primeiro contato ao fechamento.
+       - Foco em humanização e personalização.
 
     6. **Scripts Recomendados**
-       - Crie mensagens prontas para: Abertura, Qualificação, Contorno de Objeção e Fechamento.
+       - Crie mensagens prontas e validadas para: Abertura, Qualificação, Contorno de Objeção e Fechamento.
 
     [SPLIT_VERSION]
     Comece diretamente com o Diagnóstico rápido. NÃO inclua introduções ou títulos como "PARTE 2" ou "Versão WhatsApp".
     
     Estrutura:
-    - Diagnóstico rápido.
-    - Principais erros (em lista "-").
-    - Sugestões de ouro.
+    - Diagnóstico rápido / Ideia central.
+    - Principais erros a evitar (em lista "-").
+    - Sugestões de ouro para conversão.
     - Scripts rápidos (Abertura e Fechamento).
 
     REGRAS GERAIS:

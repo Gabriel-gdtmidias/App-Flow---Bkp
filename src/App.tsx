@@ -3272,7 +3272,7 @@ export default function App() {
                         : mode === "meeting_summary"
                           ? "Cole a transcrição da reunião aqui"
                           : mode === "sales_analyzer"
-                            ? "Cole as conversas do WhatsApp aqui ou suba os prints"
+                            ? "Objetivo do atendimento ou conversas do WhatsApp"
                             : mode === "account_actions" || mode === "group_update" 
                               ? "Cole a conversa ou suba arquivos (Print, PDF, Áudio)" 
                               : "Cole a conversa ou suba arquivos aqui"}
@@ -3287,7 +3287,7 @@ export default function App() {
                           : mode === "meeting_summary"
                             ? "Cole aqui a transcrição completa da reunião..."
                             : mode === "sales_analyzer"
-                              ? "Cole aqui o texto das conversas ou suba os prints abaixo..."
+                              ? "Descreva seu objetivo com o script ou cole aqui as conversas..."
                               : mode === "account_actions" || mode === "group_update"
                                 ? "Cole o log da conversa ou suba um print/PDF do Meta/Google Ads..." 
                                 : "[10:30, 21/03/2024] João: Vamos marcar a reunião?..."}
@@ -3557,10 +3557,10 @@ export default function App() {
           </div>
           <div className="grid sm:grid-cols-4 gap-6">
             {mode === "sales_analyzer" ? [
-              { step: "1", title: "Prints de Conversas", desc: "Envie até 10 prints de suas conversas no WhatsApp." },
+              { step: "1", title: "Prints ou Objetivo", desc: "Suba até 10 prints ou descreva seu objetivo de atendimento." },
               { step: "2", title: "Defina o Nicho", desc: "Informe o nicho para uma análise contextualizada." },
-              { step: "3", title: "Análise Estratégica", desc: "A IA identifica erros e oportunidades de conversão." },
-              { step: "4", title: "Scripts Prontos", desc: "Receba scripts validados para aplicar agora." }
+              { step: "3", title: "Análise Estratégica", desc: "A IA identifica erros ou cria uma estrutura do zero." },
+              { step: "4", title: "Scripts Prontos", desc: "Receba scripts humanizados e de alta conversão." }
             ].map((item) => (
               <div key={item.step} className="space-y-2">
                 <div className="text-3xl font-bold text-emerald-200">{item.step}</div>
