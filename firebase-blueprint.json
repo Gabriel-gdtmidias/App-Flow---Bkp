@@ -32,7 +32,7 @@
         },
         "mode": {
           "type": "string",
-          "enum": ["communication", "account_actions", "group_update", "client_response", "meeting_summary"],
+          "enum": ["communication", "account_actions", "group_update", "client_response", "meeting_summary", "sales_analyzer"],
           "description": "The type of summary generated."
         },
         "content": {
@@ -50,6 +50,31 @@
         }
       },
       "required": ["clientId", "mode", "content", "createdAt", "uid"]
+    },
+    "SalesAnalysis": {
+      "title": "SalesAnalysis",
+      "description": "A record of a WhatsApp sales analysis generated for a client.",
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "description": "The ID of the client this analysis belongs to."
+        },
+        "niche": {
+          "type": "string",
+          "description": "The niche of the analysis."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the analysis was generated."
+        },
+        "uid": {
+          "type": "string",
+          "description": "The user ID who owns this analysis."
+        }
+      },
+      "required": ["clientId", "niche", "createdAt", "uid"]
     }
   },
   "firestore": {
@@ -60,6 +85,10 @@
     "/histories/{historyId}": {
       "schema": "History",
       "description": "Collection of history records for clients."
+    },
+    "/sales_analyses/{analysisId}": {
+      "schema": "SalesAnalysis",
+      "description": "Collection of sales analysis records for metrics."
     }
   }
 }

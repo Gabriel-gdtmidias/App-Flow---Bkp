@@ -220,6 +220,7 @@ export default function App() {
   const [dashboardClientFilter, setDashboardClientFilter] = useState<string | null>(null);
   const [dashboardCustomStart, setDashboardCustomStart] = useState<string>("");
   const [dashboardCustomEnd, setDashboardCustomEnd] = useState<string>("");
+  const [niche, setNiche] = useState("");
   const [allHistories, setAllHistories] = useState<HistoryRecord[]>([]);
   const [historySummary, setHistorySummary] = useState<string | null>(null);
   const [groupMessage, setGroupMessage] = useState<string | null>(null);
@@ -277,14 +278,16 @@ export default function App() {
     account_actions: "",
     group_update: "",
     client_response: "",
-    meeting_summary: ""
+    meeting_summary: "",
+    sales_analyzer: ""
   });
   const [summaries, setSummaries] = useState<Record<SummaryMode, string | null>>({
     communication: null,
     account_actions: null,
     group_update: null,
     client_response: null,
-    meeting_summary: null
+    meeting_summary: null,
+    sales_analyzer: null
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -295,21 +298,24 @@ export default function App() {
     account_actions: [],
     group_update: [],
     client_response: [],
-    meeting_summary: []
+    meeting_summary: [],
+    sales_analyzer: []
   });
   const [audios, setAudios] = useState<Record<SummaryMode, { data: string; mimeType: string; fileName: string } | null>>({
     communication: null,
     account_actions: null,
     group_update: null,
     client_response: null,
-    meeting_summary: null
+    meeting_summary: null,
+    sales_analyzer: null
   });
   const [pdfs, setPdfs] = useState<Record<SummaryMode, { data: string; mimeType: string; fileName: string }[]>>({
     communication: [],
     account_actions: [],
     group_update: [],
     client_response: [],
-    meeting_summary: []
+    meeting_summary: [],
+    sales_analyzer: []
   });
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -339,38 +345,44 @@ export default function App() {
       account_actions: "",
       group_update: "",
       client_response: "",
-      meeting_summary: ""
+      meeting_summary: "",
+      sales_analyzer: ""
     });
     setSummaries({
       communication: null,
       account_actions: null,
       group_update: null,
       client_response: null,
-      meeting_summary: null
+      meeting_summary: null,
+      sales_analyzer: null
     });
     setImages({
       communication: [],
       account_actions: [],
       group_update: [],
       client_response: [],
-      meeting_summary: []
+      meeting_summary: [],
+      sales_analyzer: []
     });
     setAudios({
       communication: null,
       account_actions: null,
       group_update: null,
       client_response: null,
-      meeting_summary: null
+      meeting_summary: null,
+      sales_analyzer: null
     });
     setPdfs({
       communication: [],
       account_actions: [],
       group_update: [],
       client_response: [],
-      meeting_summary: []
+      meeting_summary: [],
+      sales_analyzer: []
     });
     setMode(null);
     setError(null);
+    setNiche("");
   }, [selectedClientId]);
   
   const resultRef = useRef<HTMLDivElement>(null);
@@ -773,6 +785,11 @@ export default function App() {
       finalContent = `[RESPOSTA AO CLIENTE] ${content}`;
     } else if (mode === "group_update") {
       finalContent = `[ENVIO DE MENSAGEM] ${content}`;
+    } else if (mode === "sales_analyzer") {
+      finalMode = "sales_analyzer";
+      // Save the WhatsApp version (second part) to history as the "summary"
+      const parts = content.split("[SPLIT_VERSION]");
+      finalContent = `[ANÁLISE DE VENDAS WHATSAPP] ${parts[1] || parts[0]}`;
     }
 
     try {
@@ -1125,6 +1142,11 @@ export default function App() {
     const currentAudio = audios[mode!];
     const currentPdfs = pdfs[mode!];
 
+    if (mode === "sales_analyzer" && !niche.trim()) {
+      setError("Por favor, informe o nicho de atuação para a análise.");
+      return;
+    }
+
     if (!currentText.trim() && currentImages.length === 0 && !currentAudio && currentPdfs.length === 0) {
       setError("Por favor, forneça dados (texto, imagem, áudio ou PDF) para análise.");
       return;
@@ -1135,8 +1157,12 @@ export default function App() {
     setSummaries(prev => ({ ...prev, [mode!]: null }));
 
     try {
+      const promptText = mode === "sales_analyzer" 
+        ? `NICHO: ${niche}\n\nCONVERSAS:\n${currentText}`
+        : currentText;
+
       const result = await summarizeChat(
-        currentText, 
+        promptText, 
         mode!, 
         currentImages.length > 0 ? currentImages.map(img => ({ data: img.data, mimeType: img.mimeType })) : undefined,
         currentAudio ? { data: currentAudio.data, mimeType: currentAudio.mimeType } : undefined,
@@ -1148,6 +1174,20 @@ export default function App() {
       // Auto-save to history if client is selected
       if (selectedClientId && user) {
         await saveToHistory(finalResult);
+        
+        if (mode === "sales_analyzer") {
+          // Register metrics
+          try {
+            await addDoc(collection(db, "sales_analyses"), {
+              clientId: selectedClientId,
+              niche: niche,
+              createdAt: serverTimestamp(),
+              uid: user.uid
+            });
+          } catch (mErr) {
+            console.error("Error saving metrics:", mErr);
+          }
+        }
       }
 
       setTimeout(() => {
@@ -1161,13 +1201,28 @@ export default function App() {
   };
 
   const handleCopy = async () => {
-    const currentSummary = summaries[mode];
+    const currentSummary = summaries[mode!];
     if (currentSummary && resultRef.current) {
       try {
         let plainText = currentSummary;
         
+        // Handle sales_analyzer split
+        if (mode === "sales_analyzer") {
+          const parts = currentSummary.split("[SPLIT_VERSION]");
+          let text = parts[1] || parts[0];
+          
+          // Clean up any potential headers the AI might have included
+          text = text
+            .replace(/^PARTE 2:.*$/gim, "")
+            .replace(/^VERSÃO WHATSAPP.*$/gim, "")
+            .replace(/^Esta versão deve ser.*$/gim, "")
+            .trim();
+            
+          plainText = text;
+        }
+
         // WhatsApp uses * for bold instead of **
-        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary") {
+        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary" || mode === "sales_analyzer") {
           plainText = plainText
             .replace(/\*\*(.*?)\*\*/g, '*$1*')
             .replace(/__(.*?)__/g, '*$1*');
@@ -1189,7 +1244,22 @@ export default function App() {
       } catch (err) {
         console.error("Rich copy failed, falling back to text:", err);
         let plainText = currentSummary;
-        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary") {
+        
+        if (mode === "sales_analyzer") {
+          const parts = currentSummary.split("[SPLIT_VERSION]");
+          let text = parts[1] || parts[0];
+          
+          // Clean up any potential headers the AI might have included
+          text = text
+            .replace(/^PARTE 2:.*$/gim, "")
+            .replace(/^VERSÃO WHATSAPP.*$/gim, "")
+            .replace(/^Esta versão deve ser.*$/gim, "")
+            .trim();
+            
+          plainText = text;
+        }
+
+        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary" || mode === "sales_analyzer") {
           plainText = plainText
             .replace(/\*\*(.*?)\*\*/g, '*$1*')
             .replace(/__(.*?)__/g, '*$1*');
@@ -1198,6 +1268,34 @@ export default function App() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!resultRef.current || !summaries[mode!]) return;
+    
+    setLoading(true);
+    try {
+      const doc = new jsPDF("p", "mm", "a4");
+      const canvas = await html2canvas(resultRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff"
+      });
+      
+      const imgData = canvas.toDataURL("image/png");
+      const imgProps = doc.getImageProperties(imgData);
+      const pdfWidth = doc.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      doc.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      doc.save(`analise-vendas-whatsapp-${selectedClient?.name || "cliente"}.pdf`);
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      setError("Falha ao gerar o PDF. Tente novamente.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1216,36 +1314,42 @@ export default function App() {
       account_actions: "",
       group_update: "",
       client_response: "",
-      meeting_summary: ""
+      meeting_summary: "",
+      sales_analyzer: ""
     });
     setSummaries({
       communication: null,
       account_actions: null,
       group_update: null,
       client_response: null,
-      meeting_summary: null
+      meeting_summary: null,
+      sales_analyzer: null
     });
     setError(null);
+    setNiche("");
     setImages({
       communication: [],
       account_actions: [],
       group_update: [],
       client_response: [],
-      meeting_summary: []
+      meeting_summary: [],
+      sales_analyzer: []
     });
     setAudios({
       communication: null,
       account_actions: null,
       group_update: null,
       client_response: null,
-      meeting_summary: null
+      meeting_summary: null,
+      sales_analyzer: null
     });
     setPdfs({
       communication: [],
       account_actions: [],
       group_update: [],
       client_response: [],
-      meeting_summary: []
+      meeting_summary: [],
+      sales_analyzer: []
     });
   };
 
@@ -1253,6 +1357,7 @@ export default function App() {
     setSummaries(prev => ({ ...prev, [mode!]: null }));
     setChatTexts(prev => ({ ...prev, [mode!]: "" }));
     setError(null);
+    setNiche("");
     setImages(prev => ({ ...prev, [mode!]: [] }));
     setAudios(prev => ({ ...prev, [mode!]: null }));
     setPdfs(prev => ({ ...prev, [mode!]: [] }));
@@ -1406,7 +1511,8 @@ export default function App() {
       account_actions: "Ações da Conta",
       group_update: "Atualização do Grupo",
       client_response: "Resposta ao Cliente",
-      meeting_summary: "Análise Estratégica de Reunião"
+      meeting_summary: "Análise Estratégica de Reunião",
+      sales_analyzer: "Análise de Vendas WhatsApp"
     };
 
     return (
@@ -3061,6 +3167,15 @@ export default function App() {
                 color: "blue",
                 action: "Analisar",
                 extra: "transcrição"
+              },
+              { 
+                id: "sales_analyzer", 
+                title: "Analisador de Vendas para WhatsApp", 
+                description: "Análise estratégica de conversas para aumento de conversão.", 
+                icon: BarChart3, 
+                color: "emerald",
+                action: "Analisar",
+                extra: "conversas"
               }
             ].map((item) => (
               <div 
@@ -3109,6 +3224,7 @@ export default function App() {
                          mode === "account_actions" ? <Briefcase size={20} /> :
                          mode === "group_update" ? <Send size={20} /> :
                          mode === "meeting_summary" ? <Calendar size={20} /> :
+                         mode === "sales_analyzer" ? <BarChart3 size={20} /> :
                          <MessageCircle size={20} />}
                       </div>
                       <h4 className="font-bold text-lg">
@@ -3116,6 +3232,7 @@ export default function App() {
                          mode === "account_actions" ? "Ações da conta" :
                          mode === "group_update" ? "Enviar mensagem" :
                          mode === "meeting_summary" ? "Análise estratégica de reunião" :
+                         mode === "sales_analyzer" ? "Analisador de Vendas para WhatsApp" :
                          "Responder mensagem cliente"}
                       </h4>
                     </div>
@@ -3131,15 +3248,34 @@ export default function App() {
                   </div>
 
                   <div className="space-y-4">
+                    {mode === "sales_analyzer" && (
+                      <div className="space-y-2">
+                        <label htmlFor="niche-input" className="text-xs font-bold uppercase tracking-widest text-[#9e9e9e] flex items-center gap-2">
+                          <ChevronRight size={14} className="text-emerald-500" />
+                          Nicho de Atuação
+                        </label>
+                        <input
+                          id="niche-input"
+                          type="text"
+                          className="w-full px-6 py-4 bg-[#f9f9f9] rounded-2xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium"
+                          placeholder="Ex: Estética, Infoprodutos, Imobiliária..."
+                          value={niche}
+                          onChange={(e) => setNiche(e.target.value)}
+                        />
+                      </div>
+                    )}
+
                     <label htmlFor="chat-input" className="text-xs font-bold uppercase tracking-widest text-[#9e9e9e] flex items-center gap-2">
                       <ChevronRight size={14} className="text-emerald-500" />
                       {mode === "client_response" 
                         ? "O que você quer dizer ao cliente? (Texto, Áudio ou PDF)" 
                         : mode === "meeting_summary"
                           ? "Cole a transcrição da reunião aqui"
-                          : mode === "account_actions" || mode === "group_update" 
-                            ? "Cole a conversa ou suba arquivos (Print, PDF, Áudio)" 
-                            : "Cole a conversa ou suba arquivos aqui"}
+                          : mode === "sales_analyzer"
+                            ? "Cole as conversas do WhatsApp aqui ou suba os prints"
+                            : mode === "account_actions" || mode === "group_update" 
+                              ? "Cole a conversa ou suba arquivos (Print, PDF, Áudio)" 
+                              : "Cole a conversa ou suba arquivos aqui"}
                     </label>
                     
                     <div className="relative">
@@ -3150,9 +3286,11 @@ export default function App() {
                           ? "Ex: O cliente está preocupado com o ROAS. Diga que estamos ajustando os criativos e que o acompanhamento é diário..."
                           : mode === "meeting_summary"
                             ? "Cole aqui a transcrição completa da reunião..."
-                            : mode === "account_actions" || mode === "group_update"
-                              ? "Cole o log da conversa ou suba um print/PDF do Meta/Google Ads..." 
-                              : "[10:30, 21/03/2024] João: Vamos marcar a reunião?..."}
+                            : mode === "sales_analyzer"
+                              ? "Cole aqui o texto das conversas ou suba os prints abaixo..."
+                              : mode === "account_actions" || mode === "group_update"
+                                ? "Cole o log da conversa ou suba um print/PDF do Meta/Google Ads..." 
+                                : "[10:30, 21/03/2024] João: Vamos marcar a reunião?..."}
                         value={chatTexts[mode]}
                         onChange={(e) => setChatTexts(prev => ({ ...prev, [mode]: e.target.value }))}
                       />
@@ -3305,7 +3443,9 @@ export default function App() {
                           ? "Responder Mensagem"
                           : mode === "meeting_summary"
                             ? "Análise Estratégica de Reunião"
-                            : "Comunicado no grupo"}
+                            : mode === "sales_analyzer"
+                              ? "Análise de Vendas WhatsApp"
+                              : "Comunicado no grupo"}
               </h3>
               <div className="flex gap-2">
                 <button 
@@ -3315,38 +3455,94 @@ export default function App() {
                   <PlusCircle size={16} />
                   Novo
                 </button>
-                <button 
-                  onClick={handleCopy}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all",
-                    copied 
-                      ? "bg-emerald-100 text-emerald-700" 
-                      : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
-                  )}
-                >
-                      {copied ? (
-                        <>
-                          <CheckCircle2 size={16} />
-                          Copiado!
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={16} />
-                          {mode === "group_update" || mode === "client_response" || mode === "meeting_summary"
-                            ? "Copiar para WhatsApp" 
-                            : mode === "communication" 
-                              ? "Copiar comunicado" 
-                              : "Copiar ações realizadas"}
-                        </>
+                
+                {mode === "sales_analyzer" ? (
+                  <>
+                    <button 
+                      onClick={handleCopy}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all",
+                        copied 
+                          ? "bg-emerald-100 text-emerald-700" 
+                          : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
                       )}
-                </button>
+                    >
+                      {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                      {copied ? "Copiado!" : "Copiar análise (WhatsApp)"}
+                    </button>
+                    <button 
+                      onClick={handleDownloadPDF}
+                      className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 shadow-sm transition-all"
+                    >
+                      <FileDown size={16} />
+                      Baixar PDF
+                    </button>
+                  </>
+                ) : (
+                  <button 
+                    onClick={handleCopy}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all",
+                      copied 
+                        ? "bg-emerald-100 text-emerald-700" 
+                        : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
+                    )}
+                  >
+                        {copied ? (
+                          <>
+                            <CheckCircle2 size={16} />
+                            Copiado!
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={16} />
+                            {mode === "group_update" || mode === "client_response" || mode === "meeting_summary"
+                              ? "Copiar para WhatsApp" 
+                              : mode === "communication" 
+                                ? "Copiar comunicado" 
+                                : "Copiar ações realizadas"}
+                          </>
+                        )}
+                  </button>
+                )}
               </div>
             </div>
             <div 
               ref={resultRef}
               className="bg-white rounded-3xl p-8 shadow-sm border border-black/5 prose prose-emerald max-w-none markdown-body"
             >
-              <ReactMarkdown>{summaries[mode] || ""}</ReactMarkdown>
+              {mode === "sales_analyzer" ? (
+                <div className="space-y-8">
+                  <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
+                    <h4 className="text-blue-900 font-bold mb-4 flex items-center gap-2">
+                      <FileText size={18} />
+                      Versão Completa (PDF)
+                    </h4>
+                    <ReactMarkdown>
+                      {summaries[mode]?.split("[SPLIT_VERSION]")[0]
+                        ?.replace(/^PARTE 1:.*$/gim, "")
+                        ?.replace(/^VERSÃO PDF.*$/gim, "")
+                        ?.replace(/^Esta versão deve ser.*$/gim, "")
+                        ?.trim() || ""}
+                    </ReactMarkdown>
+                  </div>
+                  <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
+                    <h4 className="text-emerald-900 font-bold mb-4 flex items-center gap-2">
+                      <MessageCircle size={18} />
+                      Versão WhatsApp (Resumida)
+                    </h4>
+                    <ReactMarkdown>
+                      {summaries[mode]?.split("[SPLIT_VERSION]")[1]
+                        ?.replace(/^PARTE 2:.*$/gim, "")
+                        ?.replace(/^VERSÃO WHATSAPP.*$/gim, "")
+                        ?.replace(/^Esta versão deve ser.*$/gim, "")
+                        ?.trim() || ""}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              ) : (
+                <ReactMarkdown>{summaries[mode] || ""}</ReactMarkdown>
+              )}
             </div>
           </div>
         )}
@@ -3360,7 +3556,18 @@ export default function App() {
             <h3 className="text-xl font-bold text-emerald-900">Como otimizar seu trabalho</h3>
           </div>
           <div className="grid sm:grid-cols-4 gap-6">
-            {[
+            {mode === "sales_analyzer" ? [
+              { step: "1", title: "Prints de Conversas", desc: "Envie até 10 prints de suas conversas no WhatsApp." },
+              { step: "2", title: "Defina o Nicho", desc: "Informe o nicho para uma análise contextualizada." },
+              { step: "3", title: "Análise Estratégica", desc: "A IA identifica erros e oportunidades de conversão." },
+              { step: "4", title: "Scripts Prontos", desc: "Receba scripts validados para aplicar agora." }
+            ].map((item) => (
+              <div key={item.step} className="space-y-2">
+                <div className="text-3xl font-bold text-emerald-200">{item.step}</div>
+                <h4 className="font-bold text-emerald-900">{item.title}</h4>
+                <p className="text-sm text-emerald-700/80 leading-relaxed">{item.desc}</p>
+              </div>
+            )) : [
               { step: "1", title: "Prints de Ads", desc: "Tire prints das métricas do Meta ou Google Ads." },
               { step: "2", title: "Áudios do Cliente", desc: "Anexe áudios com briefings ou feedbacks para transcrição automática." },
               { step: "3", title: "Contexto Extra", desc: "Cole conversas de texto para complementar a análise." },

@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
-export type SummaryMode = "communication" | "account_actions" | "group_update" | "client_response" | "meeting_summary";
+export type SummaryMode = "communication" | "account_actions" | "group_update" | "client_response" | "meeting_summary" | "sales_analyzer";
 
 export async function summarizeChat(
   chatText: string, 
@@ -190,12 +190,64 @@ export async function summarizeChat(
     Formate a saída em Markdown elegante. Use negrito para destacar pontos cruciais e nomes de responsáveis.
   `;
 
+  const salesAnalyzerInstruction = `
+    Você é um especialista em vendas e conversão via WhatsApp, com foco em análise estratégica de scripts e atendimento comercial.
+    ${fileInstruction}
+
+    Objetivo:
+    Analisar prints de conversas de WhatsApp para identificar padrões, falhas e oportunidades de aumento de conversão no nicho informado.
+
+    Sua resposta DEVE conter duas versões separadas EXATAMENTE pela tag [SPLIT_VERSION].
+    NÃO inclua os títulos "--- PARTE 1 ---" ou "--- PARTE 2 ---" no conteúdo gerado.
+
+    PARTE 1: VERSÃO PDF (COMPLETA E DETALHADA)
+    Esta versão deve ser profunda, analítica e estratégica.
+
+    Estrutura:
+    1. **Diagnóstico Geral**
+       - Resumo do nível do atendimento.
+       - Avaliação do potencial de conversão.
+
+    2. **Pontos Positivos**
+       - O que está funcionando bem.
+       - Boas práticas identificadas nas conversas.
+
+    3. **Pontos de Melhoria**
+       - Onde as vendas estão sendo perdidas.
+       - Falhas de abordagem, falta de condução, objeções mal trabalhadas, ausência de CTA.
+
+    4. **Erros Críticos**
+       - Erros que impactam diretamente na conversão (demora, resposta fria, falta de personalização, quebra de fluxo).
+
+    5. **Oportunidades de Otimização**
+       - Ajustes práticos para ganho imediato.
+       - Sugestões estratégicas.
+
+    6. **Scripts Recomendados**
+       - Crie mensagens prontas para: Abertura, Qualificação, Contorno de Objeção e Fechamento.
+
+    [SPLIT_VERSION]
+    Comece diretamente com o Diagnóstico rápido. NÃO inclua introduções ou títulos como "PARTE 2" ou "Versão WhatsApp".
+    
+    Estrutura:
+    - Diagnóstico rápido.
+    - Principais erros (em lista "-").
+    - Sugestões de ouro.
+    - Scripts rápidos (Abertura e Fechamento).
+
+    REGRAS GERAIS:
+    - Tom: Consultivo, estratégico, claro e direto.
+    - NUNCA use linguagem negativa agressiva. Transforme erros em oportunidades.
+    - Use Markdown para formatação (negrito, listas).
+  `;
+
   const modeInstructions: Record<SummaryMode, string> = {
     communication: communicationInstruction,
     account_actions: accountActionsInstruction,
     group_update: groupUpdateInstruction,
     client_response: clientResponseInstruction,
-    meeting_summary: meetingSummaryInstruction
+    meeting_summary: meetingSummaryInstruction,
+    sales_analyzer: salesAnalyzerInstruction
   };
 
   const systemInstruction = modeInstructions[mode];
