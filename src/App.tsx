@@ -2587,542 +2587,6 @@ export default function App() {
             </section>
           )}
 
-          {/* Summary Options Modal */}
-          {isSummaryOptionsModalOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
-                <div className="px-8 py-6 border-b border-black/5 flex items-center justify-between bg-gray-50/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
-                      <Sparkles size={20} />
-                    </div>
-                    <div className="flex flex-col">
-                      <h3 className="text-xl font-bold text-gray-900">Gerar Insights do Período</h3>
-                      <p className="text-xs text-gray-500 mt-1">Selecione os dados que você deseja analisar para gerar um insight estratégico personalizado.</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setIsSummaryOptionsModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all">
-                    <X size={24} />
-                  </button>
-                </div>
-                
-                <div className="p-8 space-y-6">
-                  <div className="space-y-4">
-                    <button 
-                      onClick={() => setSummaryOption("all")}
-                      className={cn(
-                        "w-full p-4 rounded-2xl border-2 text-left transition-all flex items-center justify-between group",
-                        summaryOption === "all" ? "border-emerald-500 bg-emerald-50/50" : "border-gray-100 hover:border-emerald-200"
-                      )}
-                    >
-                      <div>
-                        <p className="font-bold text-gray-900">Resumir todos os cards</p>
-                        <p className="text-xs text-gray-500">Inclui todas as categorias de atualização</p>
-                      </div>
-                      <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                        summaryOption === "all" ? "border-emerald-500 bg-emerald-500" : "border-gray-300"
-                      )}>
-                        {summaryOption === "all" && <div className="w-2 h-2 rounded-full bg-white" />}
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => setSummaryOption("selected")}
-                      className={cn(
-                        "w-full p-4 rounded-2xl border-2 text-left transition-all flex items-center justify-between group",
-                        summaryOption === "selected" ? "border-emerald-500 bg-emerald-50/50" : "border-gray-100 hover:border-emerald-200"
-                      )}
-                    >
-                      <div>
-                        <p className="font-bold text-gray-900">Resumir cards selecionados</p>
-                        <p className="text-xs text-gray-500">Apenas as categorias marcadas no dashboard</p>
-                      </div>
-                      <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                        summaryOption === "selected" ? "border-emerald-500 bg-emerald-500" : "border-gray-300"
-                      )}>
-                        {summaryOption === "selected" && <div className="w-2 h-2 rounded-full bg-white" />}
-                      </div>
-                    </button>
-                  </div>
-
-                  {summaryOption === "selected" && (
-                    <div className="bg-gray-50 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-2">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Categorias Selecionadas</p>
-                      {[
-                        { id: "communication", label: "Comunicados no Grupo" },
-                        { id: "account_actions", label: "Ações da Conta" },
-                        { id: "group_update", label: "Atualização do Grupo" },
-                        { id: "meeting_summary", label: "Análise Estratégica de Reunião" }
-                      ].map(cat => (
-                        <div key={cat.id} className="flex items-center justify-between">
-                          <span className="text-sm text-gray-700">{cat.label}</span>
-                          <button
-                            onClick={() => {
-                              setSelectedSummaryModes(prev => 
-                                prev.includes(cat.id as SummaryMode)
-                                  ? prev.filter(m => m !== cat.id)
-                                  : [...prev, cat.id as SummaryMode]
-                              );
-                            }}
-                            className={cn(
-                              "w-5 h-5 rounded border flex items-center justify-center transition-all",
-                              selectedSummaryModes.includes(cat.id as SummaryMode) ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-gray-300"
-                            )}
-                          >
-                            {selectedSummaryModes.includes(cat.id as SummaryMode) && <CheckCircle2 size={12} />}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {summaryOption === "selected" && selectedSummaryModes.length === 0 && (
-                    <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold animate-in shake duration-300">
-                      <AlertTriangle size={14} />
-                      Selecione ao menos um card para gerar os insights.
-                    </div>
-                  )}
-                </div>
-
-                <div className="px-8 py-6 border-t border-black/5 bg-gray-50/50 flex flex-col gap-3">
-                  <button
-                    onClick={executeSummarizeHistory}
-                    disabled={summaryOption === "selected" && selectedSummaryModes.length === 0}
-                    className="w-full py-4 bg-emerald-500 text-white rounded-2xl text-sm font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    <Sparkles size={18} />
-                    Gerar Insights
-                  </button>
-                  <button
-                    onClick={() => setIsSummaryOptionsModalOpen(false)}
-                    className="w-full py-3 text-gray-500 text-xs font-bold hover:text-gray-700 transition-all"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* History Detail Modal */}
-          {isHistoryDetailModalOpen && selectedHistoryRecord && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300 overflow-hidden">
-                <div className="px-8 py-6 border-b border-black/5 flex items-center justify-between bg-gray-50/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
-                      <HistoryIcon size={20} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">Detalhes da Atualização</h3>
-                      <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">
-                        <Calendar size={12} />
-                        {selectedHistoryRecord.createdAt?.toDate ? selectedHistoryRecord.createdAt.toDate().toLocaleString('pt-BR') : new Date(selectedHistoryRecord.createdAt).toLocaleString('pt-BR')}
-                      </div>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setIsHistoryDetailModalOpen(false);
-                      setSelectedHistoryRecord(null);
-                    }} 
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
-                  >
-                    <X size={24} />
-                  </button>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                  <div className="bg-gray-50 rounded-2xl p-8 border border-black/5 prose prose-sm max-w-none text-gray-700 leading-relaxed">
-                    <ReactMarkdown>{selectedHistoryRecord.content}</ReactMarkdown>
-                  </div>
-                </div>
-
-                <div className="px-8 py-6 border-t border-black/5 bg-gray-50/50 flex justify-end gap-3">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(selectedHistoryRecord.content);
-                      // Optional: show a toast or feedback
-                    }}
-                    className="px-6 py-2.5 bg-white border border-black/5 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all flex items-center gap-2"
-                  >
-                    <Copy size={16} />
-                    Copiar Texto
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsHistoryDetailModalOpen(false);
-                      setSelectedHistoryRecord(null);
-                    }}
-                    className="px-6 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
-                  >
-                    Fechar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Client History Modal */}
-          {isClientHistoryModalOpen && clientForHistoryModal && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="bg-white rounded-[40px] w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 overflow-hidden">
-                <div className="px-10 py-8 border-b border-black/5 flex items-center justify-between bg-gray-50/50">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-500/20">
-                      <Users size={28} />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-black text-gray-900">{clientForHistoryModal.name}</h3>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Central de Inteligência Estratégica</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setIsClientHistoryModalOpen(false);
-                      setClientForHistoryModal(null);
-                    }} 
-                    className="p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-2xl transition-all"
-                  >
-                    <X size={28} />
-                  </button>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-10 custom-scrollbar space-y-8 bg-gray-50/30">
-                  {getFilteredHistory(allHistories.filter(h => h.clientId === clientForHistoryModal.id), { type: "all" } as any)
-                    .sort((a, b) => {
-                      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
-                      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
-                      return dateB.getTime() - dateA.getTime();
-                    })
-                    .map((record, idx) => (
-                      <div key={record.id} className="relative pl-8 animate-in slide-in-from-left-4 duration-500" style={{ animationDelay: `${idx * 50}ms` }}>
-                        {/* Timeline line */}
-                        <div className="absolute left-0 top-0 bottom-0 w-px bg-emerald-200" />
-                        {/* Timeline dot */}
-                        <div className="absolute left-[-4px] top-2 w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.1)]" />
-                        
-                        <div className="bg-white rounded-3xl p-6 border border-black/5 shadow-sm space-y-4 hover:shadow-md transition-all">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <span className={cn(
-                                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                                  record.mode === "communication" ? "bg-blue-100 text-blue-700" :
-                                  record.mode === "account_actions" ? "bg-purple-100 text-purple-700" :
-                                  (record.mode === "group_update" || record.mode === "client_response") ? "bg-emerald-100 text-emerald-700" :
-                                  "bg-indigo-100 text-indigo-700"
-                                )}>
-                                  {record.mode === "communication" ? "Comunicado" :
-                                   record.mode === "account_actions" ? "Ação da Conta" :
-                                   (record.mode === "group_update" || record.mode === "client_response") ? "Atualização Grupo" :
-                                   "Análise Reunião"}
-                                </span>
-                                {(record.mode === "client_response" || record.content.includes("[RESPOSTA AO CLIENTE]")) && (
-                                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Resposta</span>
-                                )}
-                                {(record.mode === "group_update" && !record.content.includes("[RESPOSTA AO CLIENTE]")) && (
-                                  <span className="bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Envio</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                <Calendar size={12} />
-                                {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => navigator.clipboard.writeText(record.content.replace("[RESPOSTA AO CLIENTE] ", "").replace("[ENVIO DE MENSAGEM] ", ""))}
-                              className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
-                              title="Copiar conteúdo"
-                            >
-                              <Copy size={14} />
-                            </button>
-                          </div>
-                          <div className="prose prose-sm max-w-none text-gray-600 leading-relaxed">
-                            <ReactMarkdown>
-                              {record.content
-                                .replace("[RESPOSTA AO CLIENTE] ", "")
-                                .replace("[ENVIO DE MENSAGEM] ", "")}
-                            </ReactMarkdown>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  
-                  {allHistories.filter(h => h.clientId === clientForHistoryModal.id).length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-40">
-                      <HistoryIcon size={48} />
-                      <p className="font-bold">Nenhum registro encontrado para este cliente.</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="px-10 py-8 border-t border-black/5 bg-gray-50/50 flex justify-end">
-                  <button
-                    onClick={() => {
-                      setIsClientHistoryModalOpen(false);
-                      setClientForHistoryModal(null);
-                    }}
-                    className="px-10 py-4 bg-emerald-500 text-white rounded-2xl text-sm font-black hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest"
-                  >
-                    Fechar Histórico
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Category History Modal */}
-          {isCategoryHistoryModalOpen && selectedCategoryForModal && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="bg-white rounded-[40px] w-full max-w-3xl shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300 overflow-hidden">
-                <div className="px-10 py-8 border-b border-black/5 flex items-center justify-between bg-gray-50/50">
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl",
-                      selectedCategoryForModal.color === "blue" ? "bg-blue-500 shadow-blue-500/20" :
-                      selectedCategoryForModal.color === "purple" ? "bg-purple-500 shadow-purple-500/20" :
-                      selectedCategoryForModal.color === "emerald" ? "bg-emerald-500 shadow-emerald-500/20" :
-                      "bg-indigo-500 shadow-indigo-500/20"
-                    )}>
-                      <selectedCategoryForModal.icon size={28} />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-black text-gray-900">{selectedCategoryForModal.label}</h3>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Histórico de {selectedCategoryForModal.label}</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setIsCategoryHistoryModalOpen(false);
-                      setSelectedCategoryForModal(null);
-                    }} 
-                    className="p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-2xl transition-all"
-                  >
-                    <X size={28} />
-                  </button>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-10 custom-scrollbar space-y-6 bg-gray-50/30">
-                  {getFilteredHistory()
-                    .filter(h => {
-                      if (selectedCategoryForModal.id === "group_update") {
-                        return h.mode === "group_update" || h.mode === "client_response";
-                      }
-                      return h.mode === selectedCategoryForModal.id;
-                    })
-                    .map((record, idx) => (
-                      <div key={record.id} className="bg-white rounded-3xl p-6 border border-black/5 shadow-sm space-y-4 hover:shadow-md transition-all animate-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${idx * 50}ms` }}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
-                              </span>
-                              {(record.mode === "client_response" || record.content.includes("[RESPOSTA AO CLIENTE]")) && (
-                                <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Resposta ao Cliente</span>
-                              )}
-                              {(record.mode === "group_update" && !record.content.includes("[RESPOSTA AO CLIENTE]")) && (
-                                <span className="bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Envio de Mensagem</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => navigator.clipboard.writeText(record.content.replace("[RESPOSTA AO CLIENTE] ", "").replace("[ENVIO DE MENSAGEM] ", ""))}
-                              className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
-                              title="Copiar conteúdo"
-                            >
-                              <Copy size={14} />
-                            </button>
-                            <button 
-                              onClick={() => {
-                                setConfirmModal({
-                                  isOpen: true,
-                                  title: "Remover Registro",
-                                  message: "Tem certeza que deseja remover este registro do histórico?",
-                                  type: 'danger',
-                                  onConfirm: async () => {
-                                    const path = `histories/${record.id}`;
-                                    try {
-                                      await deleteDoc(doc(db, "histories", record.id));
-                                    } catch (err) {
-                                      handleFirestoreError(err, OperationType.DELETE, path);
-                                    }
-                                  }
-                                });
-                              }}
-                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="prose prose-sm max-w-none text-gray-600 leading-relaxed">
-                          <ReactMarkdown>
-                            {record.content
-                              .replace("[RESPOSTA AO CLIENTE] ", "")
-                              .replace("[ENVIO DE MENSAGEM] ", "")}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-
-                <div className="px-10 py-8 border-t border-black/5 bg-gray-50/50 flex justify-end">
-                  <button
-                    onClick={() => {
-                      setIsCategoryHistoryModalOpen(false);
-                      setSelectedCategoryForModal(null);
-                    }}
-                    className="px-10 py-4 bg-emerald-500 text-white rounded-2xl text-sm font-black hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest"
-                  >
-                    Fechar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Profile Modal */}
-          {isProfileModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl space-y-6 animate-in zoom-in-95 duration-300">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold">Editar Perfil</h3>
-                  <button onClick={() => setIsProfileModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                    <X size={24} />
-                  </button>
-                </div>
-                
-                <form onSubmit={handleSaveProfile} className="space-y-6">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="relative group">
-                      <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-emerald-500/20 shadow-lg">
-                        {tempProfilePic ? (
-                          <img src={tempProfilePic} alt="Preview" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-3xl font-bold">
-                            {(tempDisplayName || user?.email || "?")[0].toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <label className="absolute bottom-0 right-0 w-8 h-8 bg-emerald-500 text-white rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-emerald-600 transition-all border-2 border-white">
-                        <ImageIcon size={16} />
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          accept="image/*" 
-                          onChange={(e) => handleProfilePicUpload(e, true)} 
-                        />
-                      </label>
-                    </div>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Foto de Perfil</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-gray-400">Nome de Exibição</label>
-                    <input 
-                      type="text" 
-                      value={tempDisplayName}
-                      onChange={(e) => setTempDisplayName(e.target.value)}
-                      placeholder="Seu nome"
-                      className="w-full px-4 py-3 bg-gray-50 border border-black/5 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-gray-400">E-mail (Não editável)</label>
-                    <input 
-                      type="text" 
-                      value={user?.email || ""}
-                      disabled
-                      className="w-full px-4 py-3 bg-gray-100 border border-black/5 rounded-2xl text-gray-500 cursor-not-allowed"
-                    />
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={authLoading || !tempDisplayName.trim()}
-                    className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
-                  >
-                    {authLoading ? <Loader2 className="animate-spin" size={20} /> : "Salvar Cadastro"}
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* Client Modal */}
-          {isClientModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl space-y-6 animate-in zoom-in-95 duration-300">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold">Novo Cliente</h3>
-                  <button onClick={() => setIsClientModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                    <X size={24} />
-                  </button>
-                </div>
-                <form onSubmit={handleAddClient} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-gray-400">Nome do Cliente</label>
-                    <input 
-                      type="text" 
-                      autoFocus
-                      value={newClientName}
-                      onChange={(e) => setNewClientName(e.target.value)}
-                      placeholder="Ex: Empresa ABC"
-                      className="w-full px-4 py-3 bg-gray-50 border border-black/5 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={!newClientName.trim()}
-                    className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20"
-                  >
-                    Adicionar Cliente
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* Edit Client Modal */}
-          {isEditingClient && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl space-y-6 animate-in zoom-in-95 duration-300">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold">Editar Cliente</h3>
-                  <button onClick={() => setIsEditingClient(false)} className="text-gray-400 hover:text-gray-600">
-                    <X size={24} />
-                  </button>
-                </div>
-                <form onSubmit={handleEditClient} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-gray-400">Nome do Cliente</label>
-                    <input 
-                      type="text" 
-                      autoFocus
-                      value={editingClientName}
-                      onChange={(e) => setEditingClientName(e.target.value)}
-                      placeholder="Ex: Empresa ABC"
-                      className="w-full px-4 py-3 bg-gray-50 border border-black/5 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={!editingClientName.trim()}
-                    className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20"
-                  >
-                    Salvar Alterações
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-
           {/* Mode Selection Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
@@ -3612,6 +3076,85 @@ export default function App() {
           }}
           onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
         />
+
+        <AnimatePresence>
+          {isProfileModalOpen && (
+            <ProfileModal 
+              isOpen={isProfileModalOpen}
+              onClose={() => setIsProfileModalOpen(false)}
+              displayName={tempDisplayName}
+              setDisplayName={setTempDisplayName}
+              profilePic={tempProfilePic}
+              handleProfilePicChange={(e) => handleProfilePicUpload(e, true)}
+              onSave={handleSaveProfile}
+              loading={authLoading}
+              error={authError}
+            />
+          )}
+
+          {(isClientModalOpen || isEditingClient) && (
+            <ClientModal 
+              isOpen={isClientModalOpen || isEditingClient}
+              onClose={() => {
+                setIsClientModalOpen(false);
+                setIsEditingClient(false);
+                setNewClientName("");
+                setEditingClientId("");
+                setEditingClientName("");
+              }}
+              isEditing={isEditingClient}
+              clientName={isEditingClient ? editingClientName : newClientName}
+              setClientName={isEditingClient ? setEditingClientName : setNewClientName}
+              onSave={isEditingClient ? handleEditClient : handleAddClient}
+            />
+          )}
+
+          {isHistoryDetailModalOpen && selectedHistoryRecord && (
+            <HistoryDetailModal 
+              isOpen={isHistoryDetailModalOpen}
+              onClose={() => setIsHistoryDetailModalOpen(false)}
+              record={selectedHistoryRecord}
+            />
+          )}
+
+          {isClientHistoryModalOpen && clientForHistoryModal && (
+            <ClientHistoryModal 
+              isOpen={isClientHistoryModalOpen}
+              onClose={() => setIsClientHistoryModalOpen(false)}
+              client={clientForHistoryModal}
+              history={clientHistories.filter(h => h.clientId === clientForHistoryModal.id)}
+              onViewDetail={(record) => {
+                setSelectedHistoryRecord(record);
+                setIsHistoryDetailModalOpen(true);
+              }}
+            />
+          )}
+
+          {isCategoryHistoryModalOpen && selectedCategoryForModal && (
+            <CategoryHistoryModal 
+              isOpen={isCategoryHistoryModalOpen}
+              onClose={() => setIsCategoryHistoryModalOpen(false)}
+              category={selectedCategoryForModal}
+              history={clientHistories.filter(h => h.mode === selectedCategoryForModal.id || (selectedCategoryForModal.id === "group_update" && h.mode === "client_response"))}
+              onViewDetail={(record) => {
+                setSelectedHistoryRecord(record);
+                setIsHistoryDetailModalOpen(true);
+              }}
+            />
+          )}
+
+          {isSummaryOptionsModalOpen && (
+            <SummaryOptionsModal 
+              isOpen={isSummaryOptionsModalOpen}
+              onClose={() => setIsSummaryOptionsModalOpen(false)}
+              summaryOption={summaryOption}
+              setSummaryOption={setSummaryOption}
+              selectedSummaryModes={selectedSummaryModes}
+              setSelectedSummaryModes={setSelectedSummaryModes}
+              onExecute={executeSummarizeHistory}
+            />
+          )}
+        </AnimatePresence>
       </main>
     </div>
     </ErrorBoundary>
@@ -3637,7 +3180,11 @@ const ConfirmationModal = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-black/5 space-y-6 animate-in zoom-in-95 duration-300">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-black/5 space-y-6"
+      >
         <div className={cn(
           "w-16 h-16 rounded-full flex items-center justify-center mx-auto",
           type === 'danger' ? "bg-red-100 text-red-600" : "bg-orange-100 text-orange-600"
@@ -3667,7 +3214,468 @@ const ConfirmationModal = ({
             Cancelar
           </button>
         </div>
-      </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const ProfileModal = ({ 
+  isOpen, 
+  onClose, 
+  displayName, 
+  setDisplayName, 
+  profilePic, 
+  handleProfilePicChange, 
+  onSave, 
+  loading, 
+  error 
+}: any) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl border border-black/5 space-y-8"
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-2xl font-bold text-gray-900">Perfil do Usuário</h3>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        <form onSubmit={onSave} className="space-y-6">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative group">
+              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-emerald-500/20 group-hover:border-emerald-500 transition-all">
+                {profilePic ? (
+                  <img src={profilePic} alt="Perfil" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-full h-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-2xl font-bold">
+                    {displayName?.[0]?.toUpperCase() || "?"}
+                  </div>
+                )}
+              </div>
+              <label className="absolute bottom-0 right-0 p-2 bg-emerald-500 text-white rounded-full shadow-lg cursor-pointer hover:bg-emerald-600 transition-all">
+                <ImageIcon size={16} />
+                <input type="file" className="hidden" accept="image/*" onChange={handleProfilePicChange} />
+              </label>
+            </div>
+            <p className="text-xs text-gray-500 font-medium">Clique no ícone para alterar a foto</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Nome de Exibição</label>
+            <input 
+              type="text" 
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium"
+              placeholder="Seu nome"
+            />
+          </div>
+
+          {error && (
+            <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-medium flex items-center gap-2">
+              <AlertTriangle size={16} />
+              {error}
+            </div>
+          )}
+
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="animate-spin mx-auto" size={20} /> : "Salvar Alterações"}
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
+const ClientModal = ({ 
+  isOpen, 
+  onClose, 
+  isEditing, 
+  clientName, 
+  setClientName, 
+  onSave 
+}: any) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl border border-black/5 space-y-8"
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-2xl font-bold text-gray-900">
+            {isEditing ? "Editar Cliente" : "Novo Cliente"}
+          </h3>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        <form onSubmit={onSave} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Nome do Cliente</label>
+            <input 
+              type="text" 
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium"
+              placeholder="Ex: Nome da Empresa ou Projeto"
+              autoFocus
+            />
+          </div>
+
+          <button 
+            type="submit"
+            disabled={!clientName.trim()}
+            className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+          >
+            {isEditing ? "Salvar Alterações" : "Adicionar Cliente"}
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
+const HistoryDetailModal = ({ isOpen, onClose, record }: any) => {
+  if (!isOpen || !record) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[32px] p-8 max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl border border-black/5 flex flex-col"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+              <HistoryIcon size={20} />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Detalhes do Registro</h3>
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-widest">
+                {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+          <div className="p-6 bg-gray-50 rounded-2xl border border-black/5 prose prose-emerald max-w-none">
+            <ReactMarkdown>{record.content}</ReactMarkdown>
+          </div>
+        </div>
+
+        <div className="pt-6 border-t border-black/5 flex justify-end">
+          <button 
+            onClick={() => {
+              navigator.clipboard.writeText(record.content);
+              onClose();
+            }}
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+          >
+            <Copy size={18} />
+            Copiar Conteúdo
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const ClientHistoryModal = ({ isOpen, onClose, client, history, onViewDetail }: any) => {
+  if (!isOpen || !client) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[32px] p-8 max-w-3xl w-full max-h-[85vh] overflow-hidden shadow-2xl border border-black/5 flex flex-col"
+      >
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm">
+              <Users size={28} />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900">{client.name}</h3>
+              <p className="text-sm text-gray-500 font-medium">Histórico completo de interações e análises</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+          {history.length === 0 ? (
+            <div className="py-20 text-center space-y-4 opacity-30">
+              <HistoryIcon size={48} className="mx-auto" />
+              <p className="font-bold uppercase tracking-widest text-sm">Nenhum registro encontrado</p>
+            </div>
+          ) : (
+            history.sort((a: any, b: any) => {
+              const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+              const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+              return dateB.getTime() - dateA.getTime();
+            }).map((record: any) => (
+              <div 
+                key={record.id}
+                className="p-6 bg-gray-50 rounded-2xl border border-black/5 hover:border-emerald-200 transition-all group cursor-pointer"
+                onClick={() => onViewDetail(record)}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-tighter",
+                      record.mode === "client_response" ? "bg-orange-100 text-orange-700" :
+                      record.mode === "group_update" ? "bg-emerald-100 text-emerald-700" :
+                      record.mode === "account_actions" ? "bg-blue-100 text-blue-700" :
+                      "bg-indigo-100 text-indigo-700"
+                    )}>
+                      {record.mode === "client_response" ? "Resposta" :
+                       record.mode === "group_update" ? "Envio" :
+                       record.mode === "account_actions" ? "Ações" :
+                       record.mode === "meeting_summary" ? "Reunião" :
+                       record.mode === "sales_analyzer" ? "Vendas" : "Comunicado"}
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-400">
+                      {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                  <ChevronRight size={16} className="text-gray-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                </div>
+                <div className="prose prose-sm max-w-none text-gray-600 line-clamp-2 text-xs leading-relaxed">
+                  <ReactMarkdown>{record.content}</ReactMarkdown>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const CategoryHistoryModal = ({ isOpen, onClose, category, history, onViewDetail }: any) => {
+  if (!isOpen || !category) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[32px] p-8 max-w-3xl w-full max-h-[85vh] overflow-hidden shadow-2xl border border-black/5 flex flex-col"
+      >
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg",
+              category.color === "blue" ? "bg-blue-500 shadow-blue-500/20" :
+              category.color === "purple" ? "bg-purple-500 shadow-purple-500/20" :
+              category.color === "emerald" ? "bg-emerald-500 shadow-emerald-500/20" :
+              "bg-indigo-500 shadow-indigo-500/20"
+            )}>
+              <category.icon size={28} />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900">{category.label}</h3>
+              <p className="text-sm text-gray-500 font-medium">Histórico consolidado de todos os clientes</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+          {history.length === 0 ? (
+            <div className="py-20 text-center space-y-4 opacity-30">
+              <category.icon size={48} className="mx-auto" />
+              <p className="font-bold uppercase tracking-widest text-sm">Nenhum registro nesta categoria</p>
+            </div>
+          ) : (
+            history.sort((a: any, b: any) => {
+              const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+              const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+              return dateB.getTime() - dateA.getTime();
+            }).map((record: any) => (
+              <div 
+                key={record.id}
+                className="p-6 bg-gray-50 rounded-2xl border border-black/5 hover:border-emerald-200 transition-all group cursor-pointer"
+                onClick={() => onViewDetail(record)}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-gray-900 uppercase tracking-widest">
+                      {record.clientName || "Cliente"}
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-400">
+                      {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                  <ChevronRight size={16} className="text-gray-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                </div>
+                <div className="prose prose-sm max-w-none text-gray-600 line-clamp-2 text-xs leading-relaxed">
+                  <ReactMarkdown>{record.content}</ReactMarkdown>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const SummaryOptionsModal = ({ 
+  isOpen, 
+  onClose, 
+  summaryOption, 
+  setSummaryOption, 
+  selectedSummaryModes, 
+  setSelectedSummaryModes, 
+  onExecute 
+}: any) => {
+  if (!isOpen) return null;
+
+  const categories = [
+    { id: "communication", label: "Comunicado grupo", icon: LayoutList, color: "emerald" },
+    { id: "account_actions", label: "Ações da conta", icon: Briefcase, color: "blue" },
+    { id: "group_update", label: "Enviar mensagem", icon: Send, color: "purple" },
+    { id: "meeting_summary", label: "Análise estratégica de reunião", icon: Calendar, color: "blue" }
+  ];
+
+  const toggleMode = (id: string) => {
+    if (selectedSummaryModes.includes(id)) {
+      setSelectedSummaryModes(selectedSummaryModes.filter((m: string) => m !== id));
+    } else {
+      setSelectedSummaryModes([...selectedSummaryModes, id]);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[32px] p-8 max-w-lg w-full shadow-2xl border border-black/5 space-y-8"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+              <Sparkles size={20} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900">Opções de Resumo</h3>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <label className="text-xs font-bold uppercase tracking-widest text-gray-400">O que deseja resumir?</label>
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => setSummaryOption("all")}
+                className={cn(
+                  "p-4 rounded-2xl border-2 transition-all text-left space-y-1",
+                  summaryOption === "all" ? "border-emerald-500 bg-emerald-50" : "border-black/5 hover:border-emerald-200"
+                )}
+              >
+                <p className="font-bold text-sm">Todo o Histórico</p>
+                <p className="text-[10px] text-gray-500">Resume todos os registros do cliente.</p>
+              </button>
+              <button 
+                onClick={() => setSummaryOption("selected")}
+                className={cn(
+                  "p-4 rounded-2xl border-2 transition-all text-left space-y-1",
+                  summaryOption === "selected" ? "border-emerald-500 bg-emerald-50" : "border-black/5 hover:border-emerald-200"
+                )}
+              >
+                <p className="font-bold text-sm">Categorias Específicas</p>
+                <p className="text-[10px] text-gray-500">Escolha quais tipos de registros incluir.</p>
+              </button>
+            </div>
+          </div>
+
+          {summaryOption === "selected" && (
+            <div className="space-y-4 animate-in slide-in-from-top-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Selecione as Categorias</label>
+                <button 
+                  onClick={() => {
+                    if (selectedSummaryModes.length === categories.length) {
+                      setSelectedSummaryModes([]);
+                    } else {
+                      setSelectedSummaryModes(categories.map(c => c.id));
+                    }
+                  }}
+                  className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest hover:underline"
+                >
+                  {selectedSummaryModes.length === categories.length ? "Desmarcar Todos" : "Selecionar Todos"}
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {categories.map((cat) => (
+                  <button 
+                    key={cat.id}
+                    onClick={() => toggleMode(cat.id)}
+                    className={cn(
+                      "flex items-center justify-between p-4 rounded-xl border transition-all",
+                      selectedSummaryModes.includes(cat.id) ? "border-emerald-200 bg-emerald-50/50" : "border-black/5 hover:bg-gray-50"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-8 h-8 rounded-lg flex items-center justify-center text-white",
+                        cat.color === "emerald" ? "bg-emerald-500" :
+                        cat.color === "blue" ? "bg-blue-500" :
+                        cat.color === "purple" ? "bg-purple-500" : "bg-indigo-500"
+                      )}>
+                        <cat.icon size={16} />
+                      </div>
+                      <span className="text-sm font-bold text-gray-700">{cat.label}</span>
+                    </div>
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                      selectedSummaryModes.includes(cat.id) ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"
+                    )}>
+                      {selectedSummaryModes.includes(cat.id) && <CheckCircle2 size={12} />}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button 
+            onClick={onExecute}
+            disabled={summaryOption === "selected" && selectedSummaryModes.length === 0}
+            className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+          >
+            Gerar Resumo Estratégico
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 };
