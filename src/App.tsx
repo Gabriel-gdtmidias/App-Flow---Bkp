@@ -55,6 +55,7 @@ import {
   transcribeAudio, 
   summarizeHistory, 
   generateGroupMessageFromHistory,
+  generateAdCopy,
   type SummaryMode 
 } from "./services/gemini";
 import { cn } from "./lib/utils";
@@ -238,6 +239,13 @@ export default function App() {
   const [isSummaryOptionsModalOpen, setIsSummaryOptionsModalOpen] = useState(false);
   const [summaryOption, setSummaryOption] = useState<"all" | "selected">("all");
   
+  // Ad Copy Generator State
+  const [adPlatform, setAdPlatform] = useState<"Google Ads" | "Meta Ads">("Google Ads");
+  const [adLanguage, setAdLanguage] = useState("Português (Brasil)");
+  const [adProductInfo, setAdProductInfo] = useState("");
+  const [generatedAdCopy, setGeneratedAdCopy] = useState<string | null>(null);
+  const [isGeneratingAdCopy, setIsGeneratingAdCopy] = useState(false);
+
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -279,7 +287,8 @@ export default function App() {
     group_update: "",
     client_response: "",
     meeting_summary: "",
-    sales_analyzer: ""
+    sales_analyzer: "",
+    ad_copy_generator: ""
   });
   const [summaries, setSummaries] = useState<Record<SummaryMode, string | null>>({
     communication: null,
@@ -287,7 +296,8 @@ export default function App() {
     group_update: null,
     client_response: null,
     meeting_summary: null,
-    sales_analyzer: null
+    sales_analyzer: null,
+    ad_copy_generator: null
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -299,7 +309,8 @@ export default function App() {
     group_update: [],
     client_response: [],
     meeting_summary: [],
-    sales_analyzer: []
+    sales_analyzer: [],
+    ad_copy_generator: []
   });
   const [audios, setAudios] = useState<Record<SummaryMode, { data: string; mimeType: string; fileName: string } | null>>({
     communication: null,
@@ -307,7 +318,8 @@ export default function App() {
     group_update: null,
     client_response: null,
     meeting_summary: null,
-    sales_analyzer: null
+    sales_analyzer: null,
+    ad_copy_generator: null
   });
   const [pdfs, setPdfs] = useState<Record<SummaryMode, { data: string; mimeType: string; fileName: string }[]>>({
     communication: [],
@@ -315,7 +327,8 @@ export default function App() {
     group_update: [],
     client_response: [],
     meeting_summary: [],
-    sales_analyzer: []
+    sales_analyzer: [],
+    ad_copy_generator: []
   });
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -346,7 +359,8 @@ export default function App() {
       group_update: "",
       client_response: "",
       meeting_summary: "",
-      sales_analyzer: ""
+      sales_analyzer: "",
+      ad_copy_generator: ""
     });
     setSummaries({
       communication: null,
@@ -354,7 +368,8 @@ export default function App() {
       group_update: null,
       client_response: null,
       meeting_summary: null,
-      sales_analyzer: null
+      sales_analyzer: null,
+      ad_copy_generator: null
     });
     setImages({
       communication: [],
@@ -362,7 +377,8 @@ export default function App() {
       group_update: [],
       client_response: [],
       meeting_summary: [],
-      sales_analyzer: []
+      sales_analyzer: [],
+      ad_copy_generator: []
     });
     setAudios({
       communication: null,
@@ -370,7 +386,8 @@ export default function App() {
       group_update: null,
       client_response: null,
       meeting_summary: null,
-      sales_analyzer: null
+      sales_analyzer: null,
+      ad_copy_generator: null
     });
     setPdfs({
       communication: [],
@@ -378,11 +395,14 @@ export default function App() {
       group_update: [],
       client_response: [],
       meeting_summary: [],
-      sales_analyzer: []
+      sales_analyzer: [],
+      ad_copy_generator: []
     });
     setMode(null);
     setError(null);
     setNiche("");
+    setGeneratedAdCopy(null);
+    setAdProductInfo("");
   }, [selectedClientId]);
   
   const resultRef = useRef<HTMLDivElement>(null);
@@ -1200,8 +1220,61 @@ export default function App() {
     }
   };
 
+  const handleGenerateAdCopy = async () => {
+    if (!selectedClientId && !isGenericMode) {
+      setError("Por favor, selecione um cliente ou utilize o modo genérico para continuar.");
+      return;
+    }
+
+    if (!adProductInfo.trim() && images[mode!].length === 0) {
+      setError("Por favor, forneça informações sobre o produto ou serviço.");
+      return;
+    }
+
+    setIsGeneratingAdCopy(true);
+    setError(null);
+    setGeneratedAdCopy(null);
+
+    try {
+      const currentImages = images[mode!];
+      const result = await generateAdCopy(
+        adPlatform,
+        adLanguage,
+        adProductInfo,
+        currentImages.length > 0 ? currentImages.map(img => ({ data: img.data, mimeType: img.mimeType })) : undefined
+      );
+
+      setGeneratedAdCopy(result);
+      setSummaries(prev => ({ ...prev, [mode!]: result }));
+      
+      // Auto-save to history if client is selected
+      if (selectedClientId && user) {
+        const historyPath = "histories";
+        try {
+          await addDoc(collection(db, historyPath), {
+            clientId: selectedClientId,
+            mode: "ad_copy_generator",
+            content: `[COPY DE ANÚNCIO - ${adPlatform.toUpperCase()}] ${result}`,
+            createdAt: serverTimestamp(),
+            uid: user.uid
+          });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.CREATE, historyPath);
+        }
+      }
+
+      setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao gerar a copy do anúncio.");
+    } finally {
+      setIsGeneratingAdCopy(false);
+    }
+  };
+
   const handleCopy = async () => {
-    const currentSummary = summaries[mode!];
+    const currentSummary = mode === "ad_copy_generator" ? generatedAdCopy : summaries[mode!];
     if (currentSummary && resultRef.current) {
       try {
         let plainText = currentSummary;
@@ -1222,7 +1295,7 @@ export default function App() {
         }
 
         // WhatsApp uses * for bold instead of **
-        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary" || mode === "sales_analyzer") {
+        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary" || mode === "sales_analyzer" || mode === "ad_copy_generator") {
           plainText = plainText
             .replace(/\*\*(.*?)\*\*/g, '*$1*')
             .replace(/__(.*?)__/g, '*$1*');
@@ -1259,7 +1332,7 @@ export default function App() {
           plainText = text;
         }
 
-        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary" || mode === "sales_analyzer") {
+        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary" || mode === "sales_analyzer" || mode === "ad_copy_generator") {
           plainText = plainText
             .replace(/\*\*(.*?)\*\*/g, '*$1*')
             .replace(/__(.*?)__/g, '*$1*');
@@ -1315,7 +1388,8 @@ export default function App() {
       group_update: "",
       client_response: "",
       meeting_summary: "",
-      sales_analyzer: ""
+      sales_analyzer: "",
+      ad_copy_generator: ""
     });
     setSummaries({
       communication: null,
@@ -1323,7 +1397,8 @@ export default function App() {
       group_update: null,
       client_response: null,
       meeting_summary: null,
-      sales_analyzer: null
+      sales_analyzer: null,
+      ad_copy_generator: null
     });
     setError(null);
     setNiche("");
@@ -1333,7 +1408,8 @@ export default function App() {
       group_update: [],
       client_response: [],
       meeting_summary: [],
-      sales_analyzer: []
+      sales_analyzer: [],
+      ad_copy_generator: []
     });
     setAudios({
       communication: null,
@@ -1341,7 +1417,8 @@ export default function App() {
       group_update: null,
       client_response: null,
       meeting_summary: null,
-      sales_analyzer: null
+      sales_analyzer: null,
+      ad_copy_generator: null
     });
     setPdfs({
       communication: [],
@@ -1349,13 +1426,16 @@ export default function App() {
       group_update: [],
       client_response: [],
       meeting_summary: [],
-      sales_analyzer: []
+      sales_analyzer: [],
+      ad_copy_generator: []
     });
   };
 
   const handleNewSummarization = () => {
     setSummaries(prev => ({ ...prev, [mode!]: null }));
     setChatTexts(prev => ({ ...prev, [mode!]: "" }));
+    setGeneratedAdCopy(null);
+    setAdProductInfo("");
     setError(null);
     setNiche("");
     setImages(prev => ({ ...prev, [mode!]: [] }));
@@ -1512,7 +1592,8 @@ export default function App() {
       group_update: "Atualização do Grupo",
       client_response: "Resposta ao Cliente",
       meeting_summary: "Análise Estratégica de Reunião",
-      sales_analyzer: "Análise de Vendas WhatsApp"
+      sales_analyzer: "Análise de Vendas WhatsApp",
+      ad_copy_generator: "Gerador de Copy para Anúncios"
     };
 
     return (
@@ -1533,7 +1614,7 @@ export default function App() {
         <div className="space-y-6">
           {filteredHistory.length > 0 ? (
             filteredHistory.map((item, idx) => (
-              <div key={item.id} className="relative pl-8 pb-8 border-l-2 border-emerald-100 last:border-0 last:pb-0">
+              <div key={`hist-item-${item.id}`} className="relative pl-8 pb-8 border-l-2 border-emerald-100 last:border-0 last:pb-0">
                 <div className="absolute left-[-9px] top-0 w-4 h-4 bg-emerald-500 rounded-full border-4 border-white shadow-sm" />
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
@@ -1883,7 +1964,7 @@ export default function App() {
                       { id: "custom", label: "Personalizado" }
                     ].map((filter) => (
                       <button
-                        key={filter.id}
+                        key={`dash-date-filter-${filter.id}`}
                         onClick={() => setDashboardDateFilter(filter.id as DateFilterType)}
                         className={cn(
                           "px-4 py-2 rounded-xl text-xs font-bold transition-all",
@@ -2122,7 +2203,7 @@ export default function App() {
                             <div className="px-6 pb-6 pt-2 border-t border-black/5 bg-gray-50/30 animate-in slide-in-from-top-2 duration-300">
                               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                                 {stats.map((stat, i) => (
-                                  <div key={i} className={cn("p-4 rounded-2xl border border-black/5 flex flex-col items-center justify-center text-center space-y-1", stat.bg)}>
+                                  <div key={`stat-${i}`} className={cn("p-4 rounded-2xl border border-black/5 flex flex-col items-center justify-center text-center space-y-1", stat.bg)}>
                                     <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{stat.label}</span>
                                     <span className={cn("text-xl font-black", stat.color)}>{stat.value}</span>
                                   </div>
@@ -2267,7 +2348,7 @@ export default function App() {
                             { id: "custom", label: "Personalizado" }
                           ].map(filter => (
                             <button
-                              key={filter.id}
+                              key={`hist-date-filter-${filter.id}`}
                               onClick={() => {
                                 setHistoryDateFilter(filter.id as any);
                                 // Automatically apply for non-input filters
@@ -2434,33 +2515,35 @@ export default function App() {
                       <div className="h-4 w-px bg-gray-200" />
                       <button 
                         onClick={() => {
-                          if (selectedSummaryModes.length === 4) {
+                          if (selectedSummaryModes.length === 6) {
                             setSelectedSummaryModes([]);
                           } else {
-                            setSelectedSummaryModes(["communication", "account_actions", "group_update", "meeting_summary"]);
+                            setSelectedSummaryModes(["communication", "account_actions", "group_update", "meeting_summary", "sales_analyzer", "ad_copy_generator"]);
                           }
                         }}
                         className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 transition-colors"
                       >
                         <div className={cn(
                           "w-4 h-4 rounded border flex items-center justify-center transition-all",
-                          selectedSummaryModes.length === 4 ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-gray-300"
+                          selectedSummaryModes.length === 6 ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-gray-300"
                         )}>
-                          {selectedSummaryModes.length === 4 && <CheckCircle2 size={10} />}
+                          {selectedSummaryModes.length === 6 && <CheckCircle2 size={10} />}
                         </div>
-                        {selectedSummaryModes.length === 4 ? "Desmarcar Todos" : "Selecionar Todos"}
+                        {selectedSummaryModes.length === 6 ? "Desmarcar Todos" : "Selecionar Todos"}
                       </button>
                     </div>
                   </div>
 
                   {/* Categorized History Boxes */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[
-                      { id: "communication", label: "Comunicados no Grupo", icon: LayoutList, color: "blue" },
-                      { id: "account_actions", label: "Ações da Conta", icon: Briefcase, color: "purple" },
-                      { id: "group_update", label: "Atualização do Grupo", icon: Users, color: "emerald" },
-                      { id: "meeting_summary", label: "Análise Estratégica de Reunião", icon: Calendar, color: "indigo" }
-                    ].map(category => {
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {[
+                        { id: "communication", label: "Comunicados no Grupo", icon: LayoutList, color: "blue" },
+                        { id: "account_actions", label: "Ações da Conta", icon: Briefcase, color: "purple" },
+                        { id: "group_update", label: "Atualização do Grupo", icon: Users, color: "emerald" },
+                        { id: "meeting_summary", label: "Análise Estratégica de Reunião", icon: Calendar, color: "indigo" },
+                        { id: "sales_analyzer", label: "Analisador de WhatsApp", icon: MessageCircle, color: "orange" },
+                        { id: "ad_copy_generator", label: "Gerador de Copy para anúncios", icon: Sparkles, color: "pink" }
+                      ].map(category => {
                       const isSelected = selectedSummaryModes.includes(category.id as SummaryMode);
                       const filtered = getFilteredHistory().filter(h => {
                         if (category.id === "group_update") {
@@ -2473,7 +2556,7 @@ export default function App() {
                       
                       return (
                         <div 
-                          key={category.id} 
+                          key={`dash-cat-${category.id}`} 
                           className={cn(
                             "bg-white rounded-[32px] border overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all group relative",
                             isSelected ? "border-emerald-500/30 ring-1 ring-emerald-500/10" : "border-black/5"
@@ -2502,6 +2585,8 @@ export default function App() {
                             category.color === "blue" ? "bg-blue-50/30" :
                             category.color === "purple" ? "bg-purple-50/30" :
                             category.color === "emerald" ? "bg-emerald-50/30" :
+                            category.color === "orange" ? "bg-orange-50/30" :
+                            category.color === "pink" ? "bg-pink-50/30" :
                             "bg-indigo-50/30"
                           )}>
                             <div className="flex items-center gap-3">
@@ -2510,6 +2595,8 @@ export default function App() {
                                 category.color === "blue" ? "bg-blue-500 shadow-blue-500/20" :
                                 category.color === "purple" ? "bg-purple-500 shadow-purple-500/20" :
                                 category.color === "emerald" ? "bg-emerald-500 shadow-emerald-500/20" :
+                                category.color === "orange" ? "bg-orange-500 shadow-orange-500/20" :
+                                category.color === "pink" ? "bg-pink-500 shadow-pink-500/20" :
                                 "bg-indigo-500 shadow-indigo-500/20"
                               )}>
                                 <category.icon size={20} />
@@ -2640,10 +2727,19 @@ export default function App() {
                 color: "emerald",
                 action: "Analisar",
                 extra: "conversas"
+              },
+              { 
+                id: "ad_copy_generator", 
+                title: "Gerador de Copy para Anúncios", 
+                description: "Crie anúncios de alta conversão para Google e Meta Ads.", 
+                icon: Sparkles, 
+                color: "emerald",
+                action: "Gerar",
+                extra: "anúncios"
               }
             ].map((item) => (
               <div 
-                key={item.id}
+                key={`mode-select-${item.id}`}
                 onClick={() => setMode(item.id as SummaryMode)}
                 className={cn(
                   "bg-white rounded-[32px] p-8 border transition-all cursor-pointer flex flex-col justify-between min-h-[280px] group",
@@ -2689,6 +2785,7 @@ export default function App() {
                          mode === "group_update" ? <Send size={20} /> :
                          mode === "meeting_summary" ? <Calendar size={20} /> :
                          mode === "sales_analyzer" ? <BarChart3 size={20} /> :
+                         mode === "ad_copy_generator" ? <Sparkles size={20} /> :
                          <MessageCircle size={20} />}
                       </div>
                       <h4 className="font-bold text-lg">
@@ -2697,6 +2794,7 @@ export default function App() {
                          mode === "group_update" ? "Enviar mensagem" :
                          mode === "meeting_summary" ? "Análise estratégica de reunião" :
                          mode === "sales_analyzer" ? "Analisador de Vendas para WhatsApp" :
+                         mode === "ad_copy_generator" ? "Gerador de Copy para Anúncios" :
                          "Responder mensagem cliente"}
                       </h4>
                     </div>
@@ -2712,6 +2810,49 @@ export default function App() {
                   </div>
 
                   <div className="space-y-4">
+                    {mode === "ad_copy_generator" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-[#9e9e9e] flex items-center gap-2">
+                            <ChevronRight size={14} className="text-emerald-500" />
+                            Plataforma
+                          </label>
+                          <div className="flex gap-2">
+                            {["Google Ads", "Meta Ads"].map((p) => (
+                              <button
+                                key={`platform-${p}`}
+                                onClick={() => setAdPlatform(p as any)}
+                                className={cn(
+                                  "flex-1 py-3 rounded-2xl text-sm font-bold border transition-all",
+                                  adPlatform === p 
+                                    ? "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
+                                    : "bg-gray-50 border-black/5 text-gray-500 hover:bg-gray-100"
+                                )}
+                              >
+                                {p}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-[#9e9e9e] flex items-center gap-2">
+                            <ChevronRight size={14} className="text-emerald-500" />
+                            Idioma
+                          </label>
+                          <select
+                            value={adLanguage}
+                            onChange={(e) => setAdLanguage(e.target.value)}
+                            className="w-full px-6 py-3 bg-[#f9f9f9] rounded-2xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium appearance-none cursor-pointer"
+                          >
+                            <option value="Português (Brasil)">Português (Brasil)</option>
+                            <option value="Português (Portugal)">Português (Portugal)</option>
+                            <option value="Inglês">Inglês</option>
+                            <option value="Espanhol">Espanhol</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
                     {mode === "sales_analyzer" && (
                       <div className="space-y-2">
                         <label htmlFor="niche-input" className="text-xs font-bold uppercase tracking-widest text-[#9e9e9e] flex items-center gap-2">
@@ -2737,9 +2878,11 @@ export default function App() {
                           ? "Cole a transcrição da reunião aqui"
                           : mode === "sales_analyzer"
                             ? "Objetivo do atendimento ou conversas do WhatsApp"
-                            : mode === "account_actions" || mode === "group_update" 
-                              ? "Cole a conversa ou suba arquivos (Print, PDF, Áudio)" 
-                              : "Cole a conversa ou suba arquivos aqui"}
+                            : mode === "ad_copy_generator"
+                              ? "Produto/Serviço (Texto, Link ou Imagem)"
+                              : mode === "account_actions" || mode === "group_update" 
+                                ? "Cole a conversa ou suba arquivos (Print, PDF, Áudio)" 
+                                : "Cole a conversa ou suba arquivos aqui"}
                     </label>
                     
                     <div className="relative">
@@ -2752,11 +2895,19 @@ export default function App() {
                             ? "Cole aqui a transcrição completa da reunião..."
                             : mode === "sales_analyzer"
                               ? "Descreva seu objetivo com o script ou cole aqui as conversas..."
-                              : mode === "account_actions" || mode === "group_update"
-                                ? "Cole o log da conversa ou suba um print/PDF do Meta/Google Ads..." 
-                                : "[10:30, 21/03/2024] João: Vamos marcar a reunião?..."}
-                        value={chatTexts[mode]}
-                        onChange={(e) => setChatTexts(prev => ({ ...prev, [mode]: e.target.value }))}
+                              : mode === "ad_copy_generator"
+                                ? "Descreva o produto, cole o link da página de vendas ou anexe um print do criativo..."
+                                : mode === "account_actions" || mode === "group_update"
+                                  ? "Cole o log da conversa ou suba um print/PDF do Meta/Google Ads..." 
+                                  : "[10:30, 21/03/2024] João: Vamos marcar a reunião?..."}
+                        value={mode === "ad_copy_generator" ? adProductInfo : chatTexts[mode]}
+                        onChange={(e) => {
+                          if (mode === "ad_copy_generator") {
+                            setAdProductInfo(e.target.value);
+                          } else {
+                            setChatTexts(prev => ({ ...prev, [mode]: e.target.value }));
+                          }
+                        }}
                       />
 
                       {/* Transcribing Indicator Overlay */}
@@ -2817,11 +2968,15 @@ export default function App() {
                     </div>
 
                     <button
-                      onClick={handleSummarize}
-                      disabled={loading || (!chatTexts[mode].trim() && images[mode].length === 0 && !audios[mode] && pdfs[mode].length === 0)}
+                      onClick={mode === "ad_copy_generator" ? handleGenerateAdCopy : handleSummarize}
+                      disabled={
+                        mode === "ad_copy_generator" 
+                          ? isGeneratingAdCopy || (!adProductInfo.trim() && images[mode].length === 0)
+                          : loading || (!chatTexts[mode].trim() && images[mode].length === 0 && !audios[mode] && pdfs[mode].length === 0)
+                      }
                       className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none"
                     >
-                      {loading ? (
+                      {(loading || isGeneratingAdCopy) ? (
                         <>
                           <Loader2 className="animate-spin" size={20} />
                           <span>Processando...</span>
@@ -2829,7 +2984,7 @@ export default function App() {
                       ) : (
                         <>
                           <Sparkles size={20} />
-                          <span>Gerar Atualização</span>
+                          <span>{mode === "ad_copy_generator" ? "Gerar Anúncios" : "Gerar"}</span>
                         </>
                       )}
                     </button>
@@ -2839,7 +2994,7 @@ export default function App() {
                   {(images[mode].length > 0 || audios[mode] || pdfs[mode].length > 0) && (
                     <div className="flex flex-wrap gap-4 animate-in fade-in slide-in-from-bottom-2">
                       {images[mode].map((img, idx) => (
-                        <div key={idx} className="relative group">
+                        <div key={`img-${idx}`} className="relative group">
                           <img src={img.preview} alt="Upload" className="w-24 h-24 object-cover rounded-2xl border border-black/5 shadow-sm" referrerPolicy="no-referrer" />
                           <button 
                             onClick={() => setImages(prev => ({
@@ -2865,7 +3020,7 @@ export default function App() {
                         </div>
                       )}
                       {pdfs[mode].map((pdf, idx) => (
-                        <div key={idx} className="flex items-center gap-3 px-4 py-2 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100 relative group">
+                        <div key={`pdf-${idx}`} className="flex items-center gap-3 px-4 py-2 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100 relative group">
                           <FileText size={16} />
                           <span className="text-xs font-bold max-w-[150px] truncate">{pdf.fileName}</span>
                           <button 
@@ -2909,7 +3064,9 @@ export default function App() {
                             ? "Análise Estratégica de Reunião"
                             : mode === "sales_analyzer"
                               ? "Análise de Vendas WhatsApp"
-                              : "Comunicado no grupo"}
+                              : mode === "ad_copy_generator"
+                                ? "Copy de Anúncio Gerada"
+                                : "Comunicado no grupo"}
               </h3>
               <div className="flex gap-2">
                 <button 
@@ -2964,7 +3121,9 @@ export default function App() {
                               ? "Copiar para WhatsApp" 
                               : mode === "communication" 
                                 ? "Copiar comunicado" 
-                                : "Copiar ações realizadas"}
+                                : mode === "ad_copy_generator"
+                                  ? "Copiar Copy"
+                                  : "Copiar ações realizadas"}
                           </>
                         )}
                   </button>
@@ -3026,7 +3185,7 @@ export default function App() {
               { step: "3", title: "Análise Estratégica", desc: "A IA identifica erros ou cria uma estrutura do zero." },
               { step: "4", title: "Scripts Prontos", desc: "Receba scripts humanizados e de alta conversão." }
             ].map((item) => (
-              <div key={item.step} className="space-y-2">
+              <div key={`step-sa-${item.step}`} className="space-y-2">
                 <div className="text-3xl font-bold text-emerald-200">{item.step}</div>
                 <h4 className="font-bold text-emerald-900">{item.title}</h4>
                 <p className="text-sm text-emerald-700/80 leading-relaxed">{item.desc}</p>
@@ -3037,7 +3196,7 @@ export default function App() {
               { step: "3", title: "Contexto Extra", desc: "Cole conversas de texto para complementar a análise." },
               { step: "4", title: "Insights Prontos", desc: "Gere análises estratégicas em segundos." }
             ].map((item) => (
-              <div key={item.step} className="space-y-2">
+              <div key={`step-gen-${item.step}`} className="space-y-2">
                 <div className="text-3xl font-bold text-emerald-200">{item.step}</div>
                 <h4 className="font-bold text-emerald-900">{item.title}</h4>
                 <p className="text-sm text-emerald-700/80 leading-relaxed">{item.desc}</p>
@@ -3179,7 +3338,7 @@ const ConfirmationModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -3353,7 +3512,7 @@ const HistoryDetailModal = ({ isOpen, onClose, record }: any) => {
   if (!isOpen || !record) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -3437,7 +3596,7 @@ const ClientHistoryModal = ({ isOpen, onClose, client, history, onViewDetail }: 
               return dateB.getTime() - dateA.getTime();
             }).map((record: any) => (
               <div 
-                key={record.id}
+                key={`hist-modal-${record.id}`}
                 className="p-6 bg-gray-50 rounded-2xl border border-black/5 hover:border-emerald-200 transition-all group cursor-pointer"
                 onClick={() => onViewDetail(record)}
               >
@@ -3518,7 +3677,7 @@ const CategoryHistoryModal = ({ isOpen, onClose, category, history, onViewDetail
               return dateB.getTime() - dateA.getTime();
             }).map((record: any) => (
               <div 
-                key={record.id}
+                key={`cat-hist-modal-${record.id}`}
                 className="p-6 bg-gray-50 rounded-2xl border border-black/5 hover:border-emerald-200 transition-all group cursor-pointer"
                 onClick={() => onViewDetail(record)}
               >
@@ -3560,7 +3719,9 @@ const SummaryOptionsModal = ({
     { id: "communication", label: "Comunicado grupo", icon: LayoutList, color: "emerald" },
     { id: "account_actions", label: "Ações da conta", icon: Briefcase, color: "blue" },
     { id: "group_update", label: "Enviar mensagem", icon: Send, color: "purple" },
-    { id: "meeting_summary", label: "Análise estratégica de reunião", icon: Calendar, color: "blue" }
+    { id: "meeting_summary", label: "Análise estratégica de reunião", icon: Calendar, color: "blue" },
+    { id: "sales_analyzer", label: "Analisador de WhatsApp", icon: MessageCircle, color: "orange" },
+    { id: "ad_copy_generator", label: "Gerador de Copy para anúncios", icon: Sparkles, color: "pink" }
   ];
 
   const toggleMode = (id: string) => {
@@ -3637,7 +3798,7 @@ const SummaryOptionsModal = ({
               <div className="grid grid-cols-1 gap-2">
                 {categories.map((cat) => (
                   <button 
-                    key={cat.id}
+                    key={`summary-cat-${cat.id}`}
                     onClick={() => toggleMode(cat.id)}
                     className={cn(
                       "flex items-center justify-between p-4 rounded-xl border transition-all",
@@ -3649,7 +3810,9 @@ const SummaryOptionsModal = ({
                         "w-8 h-8 rounded-lg flex items-center justify-center text-white",
                         cat.color === "emerald" ? "bg-emerald-500" :
                         cat.color === "blue" ? "bg-blue-500" :
-                        cat.color === "purple" ? "bg-purple-500" : "bg-indigo-500"
+                        cat.color === "purple" ? "bg-purple-500" :
+                        cat.color === "orange" ? "bg-orange-500" :
+                        cat.color === "pink" ? "bg-pink-500" : "bg-indigo-500"
                       )}>
                         <cat.icon size={16} />
                       </div>
@@ -3778,7 +3941,7 @@ const ClientSelector = ({
 
             {filteredClients.length > 0 ? (
               filteredClients.map(client => (
-                <div key={client.id} className="group relative">
+                <div key={`client-list-${client.id}`} className="group relative">
                   <div
                     onClick={() => handleSelect(client.id)}
                     className={cn(

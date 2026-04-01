@@ -2,7 +2,94 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
-export type SummaryMode = "communication" | "account_actions" | "group_update" | "client_response" | "meeting_summary" | "sales_analyzer";
+export type SummaryMode = "communication" | "account_actions" | "group_update" | "client_response" | "meeting_summary" | "sales_analyzer" | "ad_copy_generator";
+
+export async function generateAdCopy(
+  platform: "Google Ads" | "Meta Ads",
+  language: string,
+  productInfo: string,
+  imagesData?: { data: string; mimeType: string }[]
+) {
+  const model = "gemini-3-flash-preview";
+  
+  const systemInstruction = `
+    Você é um gerador de copy dentro do GDT Insights.
+    Objetivo: criar anúncios de alta conversão com base em poucas informações, mantendo clareza, objetividade e foco em resultado.
+
+    ⚠️ Regras:
+    - Ser direto e estratégico (evitar textos longos)
+    - Linguagem simples, persuasiva e humana
+    - Foco em conversão (clique ou ação)
+    - Adaptar ao idioma selecionado: ${language}
+    - Usar apenas 1 ou 2 estruturas de copy por geração (PAS, BAB, FAB, 4U's, PPPP)
+    - NÃO cite nomes de autores ou referências na resposta.
+    - Retorne APENAS a copy estruturada conforme o formato de saída.
+
+    🧩 LÓGICA DE GERAÇÃO:
+    Se for Google Ads:
+    Gerar:
+    - 5 Títulos (máx. 30 caracteres cada)
+    - 3 Descrições (máx. 90 caracteres cada)
+    Focar em: Clareza, Palavra-chave direta, Benefício claro, CTA leve.
+
+    Se for Meta Ads:
+    Gerar:
+    - 1 Título
+    - 1 Copy principal (curta/média)
+    - 1 Descrição complementar (opcional)
+    Focar em: Gancho inicial forte, Dor ou desejo do público, Benefício claro, CTA direto.
+
+    📦 FORMATO DE SAÍDA (MANDATÓRIO):
+    Se Google Ads:
+    Títulos:
+    1.
+    2.
+    3.
+    4.
+    5.
+
+    Descrições:
+    1.
+    2.
+    3.
+
+    Se Meta Ads:
+    *Título:* [Texto do título aqui] ✨
+
+    *Copy:* [Texto da copy principal aqui, use parágrafos se necessário para legibilidade. Deixe uma linha em branco entre o título e a copy, e entre a copy e a descrição.]
+
+    *Descrição:* [Texto da descrição complementar aqui]
+  `;
+
+  const parts: any[] = [{ text: `Plataforma: ${platform}\nIdioma: ${language}\nProduto/Serviço: ${productInfo}` }];
+  
+  if (imagesData && imagesData.length > 0) {
+    imagesData.forEach(img => {
+      parts.push({
+        inlineData: {
+          data: img.data,
+          mimeType: img.mimeType,
+        },
+      });
+    });
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: [{ parts }],
+      config: {
+        systemInstruction,
+        temperature: 0.7,
+      },
+    });
+
+    return response.text;
+  } catch (error) {
+    console.error("Error generating ad copy:", error);
+    throw new Error("Falha ao gerar a copy do anúncio.");
+  }
+}
 
 export async function summarizeChat(
   chatText: string, 
@@ -251,7 +338,8 @@ export async function summarizeChat(
     group_update: groupUpdateInstruction,
     client_response: clientResponseInstruction,
     meeting_summary: meetingSummaryInstruction,
-    sales_analyzer: salesAnalyzerInstruction
+    sales_analyzer: salesAnalyzerInstruction,
+    ad_copy_generator: "Você é um gerador de copy de anúncios."
   };
 
   const systemInstruction = modeInstructions[mode];
