@@ -45,7 +45,8 @@ import {
   FileText,
   Paperclip,
   Edit2,
-  BarChart3
+  BarChart3,
+  Megaphone
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { jsPDF } from "jspdf";
@@ -1614,7 +1615,7 @@ export default function App() {
         <div className="space-y-6">
           {filteredHistory.length > 0 ? (
             filteredHistory.map((item, idx) => (
-              <div key={`hist-item-${item.id}`} className="relative pl-8 pb-8 border-l-2 border-emerald-100 last:border-0 last:pb-0">
+              <div key={`thread-item-${item.id}-${idx}`} className="relative pl-8 pb-8 border-l-2 border-emerald-100 last:border-0 last:pb-0">
                 <div className="absolute left-[-9px] top-0 w-4 h-4 bg-emerald-500 rounded-full border-4 border-white shadow-sm" />
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
@@ -2539,7 +2540,7 @@ export default function App() {
                       {[
                         { id: "communication", label: "Comunicados no Grupo", icon: LayoutList, color: "blue" },
                         { id: "account_actions", label: "Ações da Conta", icon: Briefcase, color: "purple" },
-                        { id: "group_update", label: "Atualização do Grupo", icon: Users, color: "emerald" },
+                        { id: "group_update", label: "Atualização do Grupo", icon: Sparkles, color: "emerald" },
                         { id: "meeting_summary", label: "Análise Estratégica de Reunião", icon: Calendar, color: "indigo" },
                         { id: "sales_analyzer", label: "Analisador de WhatsApp", icon: MessageCircle, color: "orange" },
                         { id: "ad_copy_generator", label: "Gerador de Copy para anúncios", icon: Sparkles, color: "pink" }
@@ -2733,7 +2734,7 @@ export default function App() {
                 title: "Gerador de Copy para Anúncios", 
                 description: "Crie anúncios de alta conversão para Google e Meta Ads.", 
                 icon: Sparkles, 
-                color: "emerald",
+                color: "pink",
                 action: "Gerar",
                 extra: "anúncios"
               }
@@ -2754,6 +2755,7 @@ export default function App() {
                     item.color === "emerald" ? "bg-emerald-500 shadow-emerald-500/20" :
                     item.color === "blue" ? "bg-blue-500 shadow-blue-500/20" :
                     item.color === "purple" ? "bg-purple-500 shadow-purple-500/20" :
+                    item.color === "pink" ? "bg-pink-500 shadow-pink-500/20" :
                     "bg-orange-500 shadow-orange-500/20"
                   )}>
                     <item.icon size={24} />
@@ -2779,10 +2781,19 @@ export default function App() {
                 <div className="p-8 space-y-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center",
+                        mode === "ad_copy_generator" ? "bg-pink-100 text-pink-600" :
+                        mode === "sales_analyzer" ? "bg-emerald-100 text-emerald-600" :
+                        mode === "meeting_summary" ? "bg-blue-100 text-blue-600" :
+                        mode === "group_update" ? "bg-emerald-100 text-emerald-600" :
+                        mode === "account_actions" ? "bg-purple-100 text-purple-600" :
+                        mode === "communication" ? "bg-blue-100 text-blue-600" :
+                        "bg-orange-100 text-orange-600"
+                      )}>
                         {mode === "communication" ? <LayoutList size={20} /> :
                          mode === "account_actions" ? <Briefcase size={20} /> :
-                         mode === "group_update" ? <Send size={20} /> :
+                         mode === "group_update" ? <Sparkles size={20} /> :
                          mode === "meeting_summary" ? <Calendar size={20} /> :
                          mode === "sales_analyzer" ? <BarChart3 size={20} /> :
                          mode === "ad_copy_generator" ? <Sparkles size={20} /> :
@@ -3268,14 +3279,6 @@ export default function App() {
             />
           )}
 
-          {isHistoryDetailModalOpen && selectedHistoryRecord && (
-            <HistoryDetailModal 
-              isOpen={isHistoryDetailModalOpen}
-              onClose={() => setIsHistoryDetailModalOpen(false)}
-              record={selectedHistoryRecord}
-            />
-          )}
-
           {isClientHistoryModalOpen && clientForHistoryModal && (
             <ClientHistoryModal 
               isOpen={isClientHistoryModalOpen}
@@ -3299,6 +3302,14 @@ export default function App() {
                 setSelectedHistoryRecord(record);
                 setIsHistoryDetailModalOpen(true);
               }}
+            />
+          )}
+
+          {isHistoryDetailModalOpen && selectedHistoryRecord && (
+            <HistoryDetailModal 
+              isOpen={isHistoryDetailModalOpen}
+              onClose={() => setIsHistoryDetailModalOpen(false)}
+              record={selectedHistoryRecord}
             />
           )}
 
@@ -3594,9 +3605,9 @@ const ClientHistoryModal = ({ isOpen, onClose, client, history, onViewDetail }: 
               const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
               const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
               return dateB.getTime() - dateA.getTime();
-            }).map((record: any) => (
+            }).map((record: any, idx: number) => (
               <div 
-                key={`hist-modal-${record.id}`}
+                key={`client-hist-modal-${record.id}-${idx}`}
                 className="p-6 bg-gray-50 rounded-2xl border border-black/5 hover:border-emerald-200 transition-all group cursor-pointer"
                 onClick={() => onViewDetail(record)}
               >
@@ -3675,9 +3686,9 @@ const CategoryHistoryModal = ({ isOpen, onClose, category, history, onViewDetail
               const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
               const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
               return dateB.getTime() - dateA.getTime();
-            }).map((record: any) => (
+            }).map((record: any, idx: number) => (
               <div 
-                key={`cat-hist-modal-${record.id}`}
+                key={`cat-hist-modal-${record.id}-${idx}`}
                 className="p-6 bg-gray-50 rounded-2xl border border-black/5 hover:border-emerald-200 transition-all group cursor-pointer"
                 onClick={() => onViewDetail(record)}
               >
@@ -3718,7 +3729,7 @@ const SummaryOptionsModal = ({
   const categories = [
     { id: "communication", label: "Comunicado grupo", icon: LayoutList, color: "emerald" },
     { id: "account_actions", label: "Ações da conta", icon: Briefcase, color: "blue" },
-    { id: "group_update", label: "Enviar mensagem", icon: Send, color: "purple" },
+    { id: "group_update", label: "Enviar mensagem", icon: Sparkles, color: "purple" },
     { id: "meeting_summary", label: "Análise estratégica de reunião", icon: Calendar, color: "blue" },
     { id: "sales_analyzer", label: "Analisador de WhatsApp", icon: MessageCircle, color: "orange" },
     { id: "ad_copy_generator", label: "Gerador de Copy para anúncios", icon: Sparkles, color: "pink" }
