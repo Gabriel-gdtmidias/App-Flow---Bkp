@@ -36,6 +36,10 @@
           "enum": ["active", "inactive"],
           "description": "The status of the client."
         },
+        "country": {
+          "type": "string",
+          "description": "The country of the client."
+        },
         "currency": {
           "type": "string",
           "description": "Currency of the investment (BRL, USD, EUR, GBP, etc.)."

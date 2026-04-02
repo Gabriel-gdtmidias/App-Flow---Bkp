@@ -100,6 +100,26 @@ enum OperationType {
   WRITE = 'write',
 }
 
+const COUNTRY_DATA: Record<string, { currency: string, flag: string }> = {
+  "Brasil": { currency: "BRL", flag: "🇧🇷" },
+  "Estados Unidos": { currency: "USD", flag: "🇺🇸" },
+  "Portugal": { currency: "EUR", flag: "🇵🇹" },
+  "Espanha": { currency: "EUR", flag: "🇪🇸" },
+  "Reino Unido": { currency: "GBP", flag: "🇬🇧" },
+  "Argentina": { currency: "ARS", flag: "🇦🇷" },
+  "Chile": { currency: "CLP", flag: "🇨🇱" },
+  "Colômbia": { currency: "COP", flag: "🇨🇴" },
+  "México": { currency: "MXN", flag: "🇲🇽" },
+  "Canadá": { currency: "CAD", flag: "🇨🇦" },
+  "Austrália": { currency: "AUD", flag: "🇦🇺" },
+  "Japão": { currency: "JPY", flag: "🇯🇵" },
+  "China": { currency: "CNY", flag: "🇨🇳" },
+  "Alemanha": { currency: "EUR", flag: "🇩🇪" },
+  "França": { currency: "EUR", flag: "🇫🇷" },
+  "Itália": { currency: "EUR", flag: "🇮🇹" },
+  "Outro": { currency: "USD", flag: "🌐" }
+};
+
 interface FirestoreErrorInfo {
   error: string;
   operationType: OperationType;
@@ -189,6 +209,7 @@ interface Client {
   investmentValue?: number;
   platformInvestments?: Record<string, number>;
   status?: 'active' | 'inactive';
+  country?: string;
   currency?: string;
   createdAt: any;
   uid: string;
@@ -230,6 +251,7 @@ export default function App() {
   const [newClientInvestment, setNewClientInvestment] = useState<string>("");
   const [newClientPlatformInvestments, setNewClientPlatformInvestments] = useState<Record<string, string>>({});
   const [newClientStatus, setNewClientStatus] = useState<'active' | 'inactive'>('active');
+  const [newClientCountry, setNewClientCountry] = useState("Brasil");
   const [newClientCurrency, setNewClientCurrency] = useState("BRL");
   const [customPlatform, setCustomPlatform] = useState("");
   const [isEditingClient, setIsEditingClient] = useState(false);
@@ -237,6 +259,7 @@ export default function App() {
   const [editingClientName, setEditingClientName] = useState("");
   const [editingClientPlatformInvestments, setEditingClientPlatformInvestments] = useState<Record<string, string>>({});
   const [editingClientStatus, setEditingClientStatus] = useState<'active' | 'inactive'>('active');
+  const [editingClientCountry, setEditingClientCountry] = useState("Brasil");
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [dashboardDateFilter, setDashboardDateFilter] = useState<DateFilterType>("current_month");
@@ -748,6 +771,7 @@ export default function App() {
           Object.entries(newClientPlatformInvestments).map(([k, v]) => [k, parseFloat(v) || 0])
         ),
         status: newClientStatus,
+        country: newClientCountry,
         currency: newClientCurrency,
         createdAt: serverTimestamp(),
         uid: user.uid
@@ -759,6 +783,7 @@ export default function App() {
       setNewClientInvestment("");
       setNewClientPlatformInvestments({});
       setNewClientStatus('active');
+      setNewClientCountry("Brasil");
       setNewClientCurrency("BRL");
       setIsClientModalOpen(false);
     } catch (err) {
@@ -782,6 +807,7 @@ export default function App() {
           Object.entries(isEditingClient ? editingClientPlatformInvestments : newClientPlatformInvestments).map(([k, v]) => [k, parseFloat(v) || 0])
         ),
         status: isEditingClient ? editingClientStatus : newClientStatus,
+        country: isEditingClient ? editingClientCountry : newClientCountry,
         currency: newClientCurrency
       });
       setIsEditingClient(false);
@@ -796,6 +822,8 @@ export default function App() {
       setEditingClientPlatformInvestments({});
       setNewClientStatus('active');
       setEditingClientStatus('active');
+      setNewClientCountry("Brasil");
+      setEditingClientCountry("Brasil");
       setNewClientCurrency("BRL");
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
@@ -1963,6 +1991,8 @@ export default function App() {
                             setNewClientCurrency(client.currency || "BRL");
                             setNewClientStatus(client.status || 'active');
                             setEditingClientStatus(client.status || 'active');
+                            setNewClientCountry(client.country || "Brasil");
+                            setEditingClientCountry(client.country || "Brasil");
                             setEditingClientPlatformInvestments(
                               Object.fromEntries(
                                 Object.entries(client.platformInvestments || {}).map(([k, v]) => [k, v.toString()])
@@ -2438,6 +2468,8 @@ export default function App() {
                                 setNewClientCurrency(client.currency || "BRL");
                                 setNewClientStatus(client.status || 'active');
                                 setEditingClientStatus(client.status || 'active');
+                                setNewClientCountry(client.country || "Brasil");
+                                setEditingClientCountry(client.country || "Brasil");
                                 setEditingClientPlatformInvestments(
                                   Object.fromEntries(
                                     Object.entries(client.platformInvestments || {}).map(([k, v]) => [k, v.toString()])
@@ -3447,18 +3479,27 @@ export default function App() {
                         >
                           <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all flex gap-2">
                             <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingClientId(client.id);
-                                setEditingClientName(client.name);
-                                setNewClientNiche(client.niche || "");
-                                setNewClientLogo(client.logo || null);
-                                setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
-                                setNewClientInvestment(client.investmentValue?.toString() || "");
-                                setNewClientCurrency(client.currency || "BRL");
-                                setIsEditingClient(true);
-                                setIsClientModalOpen(true);
-                              }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingClientId(client.id);
+                                  setEditingClientName(client.name);
+                                  setNewClientNiche(client.niche || "");
+                                  setNewClientLogo(client.logo || null);
+                                  setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
+                                  setNewClientInvestment(client.investmentValue?.toString() || "");
+                                  setNewClientCurrency(client.currency || "BRL");
+                                  setNewClientStatus(client.status || 'active');
+                                  setEditingClientStatus(client.status || 'active');
+                                  setNewClientCountry(client.country || "Brasil");
+                                  setEditingClientCountry(client.country || "Brasil");
+                                  setEditingClientPlatformInvestments(
+                                    Object.fromEntries(
+                                      Object.entries(client.platformInvestments || {}).map(([k, v]) => [k, v.toString()])
+                                    )
+                                  );
+                                  setIsEditingClient(true);
+                                  setIsClientModalOpen(true);
+                                }}
                               className="p-2 bg-white text-blue-600 rounded-xl shadow-lg hover:bg-blue-50 transition-all border border-blue-100"
                               title="Editar Cliente"
                             >
@@ -3488,17 +3529,40 @@ export default function App() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <h4 className="font-bold text-gray-900 truncate text-lg">{client.name}</h4>
-                              <p className="text-xs text-purple-600 font-bold uppercase tracking-widest truncate">{client.niche || "Nicho não definido"}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs text-purple-600 font-bold uppercase tracking-widest truncate">{client.niche || "Nicho não definido"}</p>
+                                {client.country && (
+                                  <>
+                                    <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate flex items-center gap-1">
+                                      <span>{COUNTRY_DATA[client.country]?.flag}</span>
+                                      {client.country}
+                                    </p>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </div>
 
                           <div className="space-y-4 flex-1">
                             <div className="flex flex-wrap gap-2">
                               {client.platforms?.map((p: string) => {
-                                const platformDaily = (client.platformInvestments?.[p] || 0) / 30;
+                                const platformMonthly = client.platformInvestments?.[p] || 0;
+                                const platformDaily = platformMonthly / 30;
+                                const percentage = client.investmentValue && client.investmentValue > 0 
+                                  ? (platformMonthly / client.investmentValue) * 100 
+                                  : 0;
+                                
                                 return (
                                   <div key={`${client.id}-plat-${p}`} className="flex flex-col gap-1 px-3 py-2 bg-gray-50 rounded-xl border border-black/5 min-w-[100px]">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{p}</span>
+                                    <div className="flex justify-between items-center gap-2">
+                                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{p}</span>
+                                      {percentage > 0 && (
+                                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
+                                          {percentage.toFixed(0)}%
+                                        </span>
+                                      )}
+                                    </div>
                                     <span className="text-xs font-bold text-gray-900">
                                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: client.currency || 'BRL' }).format(platformDaily)}/dia
                                     </span>
@@ -3601,6 +3665,10 @@ export default function App() {
                 setNewClientInvestment("");
                 setNewClientPlatformInvestments({});
                 setEditingClientPlatformInvestments({});
+                setNewClientStatus('active');
+                setEditingClientStatus('active');
+                setNewClientCountry("Brasil");
+                setEditingClientCountry("Brasil");
                 setNewClientCurrency("BRL");
                 setEditingClientId("");
                 setEditingClientName("");
@@ -3620,6 +3688,8 @@ export default function App() {
               setPlatformInvestments={isEditingClient ? setEditingClientPlatformInvestments : setNewClientPlatformInvestments}
               status={isEditingClient ? editingClientStatus : newClientStatus}
               setStatus={isEditingClient ? setEditingClientStatus : setNewClientStatus}
+              country={isEditingClient ? editingClientCountry : newClientCountry}
+              setCountry={isEditingClient ? setEditingClientCountry : setNewClientCountry}
               currency={newClientCurrency}
               setCurrency={setNewClientCurrency}
               onSave={isEditingClient ? handleEditClient : handleAddClient}
@@ -3832,6 +3902,8 @@ const ClientModal = ({
   setPlatformInvestments,
   status,
   setStatus,
+  country,
+  setCountry,
   currency,
   setCurrency,
   onSave 
@@ -3943,6 +4015,25 @@ const ClientModal = ({
               </div>
 
               <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">País da Empresa</label>
+                <select 
+                  value={country}
+                  onChange={(e) => {
+                    const newCountry = e.target.value;
+                    setCountry(newCountry);
+                    if (COUNTRY_DATA[newCountry]) {
+                      setCurrency(COUNTRY_DATA[newCountry].currency);
+                    }
+                  }}
+                  className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium"
+                >
+                  {Object.keys(COUNTRY_DATA).map(c => (
+                    <option key={c} value={c}>{COUNTRY_DATA[c].flag} {c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Status do Cliente</label>
                 <div className="flex gap-2">
                   <button
@@ -4040,26 +4131,39 @@ const ClientModal = ({
                     <p className="text-xs text-gray-400 italic">Selecione ao menos uma plataforma para definir o investimento.</p>
                   ) : (
                     <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                      {platforms.map((p: string) => (
-                        <div key={p} className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-black/5">
-                          <span className="text-xs font-bold text-gray-600 min-w-[80px] truncate">{p}</span>
-                          <div className="flex-1 flex gap-2">
-                            <span className="text-gray-400 font-bold self-center text-xs">{currency}</span>
-                            <input 
-                              type="number" 
-                              value={platformInvestments[p] || ""}
-                              onChange={(e) => {
-                                const newInvestments = { ...platformInvestments, [p]: e.target.value };
-                                setPlatformInvestments(newInvestments);
-                                const total = Object.values(newInvestments).reduce((acc: number, curr: any) => acc + (parseFloat(curr) || 0), 0);
-                                setInvestment(total.toString());
-                              }}
-                              className="w-full bg-white px-4 py-2 rounded-xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium text-sm"
-                              placeholder="0,00"
-                            />
+                      {platforms.map((p: string) => {
+                        const platformValue = parseFloat(platformInvestments[p]) || 0;
+                        const totalValue = Object.values(platformInvestments || {}).reduce((acc: number, curr: any) => acc + (parseFloat(curr) || 0), 0) as number;
+                        const percentage = totalValue > 0 ? (platformValue / totalValue) * 100 : 0;
+                        
+                        return (
+                          <div key={p} className="flex flex-col gap-2 bg-gray-50 p-3 rounded-2xl border border-black/5">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold text-gray-600 truncate">{p}</span>
+                              {percentage > 0 && (
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">
+                                  {percentage.toFixed(0)}%
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="text-gray-400 font-bold self-center text-xs">{currency}</span>
+                              <input 
+                                type="number" 
+                                value={platformInvestments[p] || ""}
+                                onChange={(e) => {
+                                  const newInvestments = { ...platformInvestments, [p]: e.target.value };
+                                  setPlatformInvestments(newInvestments);
+                                  const total = Object.values(newInvestments).reduce((acc: number, curr: any) => acc + (parseFloat(curr) || 0), 0);
+                                  setInvestment(total.toString());
+                                }}
+                                className="w-full bg-white px-4 py-2 rounded-xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium text-sm"
+                                placeholder="0,00"
+                              />
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -4492,7 +4596,7 @@ const ClientSelector = ({
           ref={inputRef}
           type="text"
           className="bg-transparent border-none outline-none text-sm font-medium w-full placeholder:text-gray-400"
-          placeholder={selectedClient ? selectedClient.name : "Buscar ou selecionar cliente..."}
+          placeholder={selectedClient ? `${COUNTRY_DATA[selectedClient.country || ""]?.flag || ""} ${selectedClient.name}`.trim() : "Buscar ou selecionar cliente..."}
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
@@ -4545,7 +4649,10 @@ const ClientSelector = ({
                         : "hover:bg-gray-50 text-gray-700"
                     )}
                   >
-                    <span>{client.name}</span>
+                    <div className="flex items-center gap-2">
+                      {client.country && <span>{COUNTRY_DATA[client.country]?.flag}</span>}
+                      <span>{client.name}</span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <button 
                         onClick={(e) => {

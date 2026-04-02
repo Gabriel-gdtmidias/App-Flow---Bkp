@@ -15,6 +15,7 @@ service cloud.firestore {
     //   - investmentValue: number (optional)
     //   - platformInvestments: map (optional)
     //   - status: string (optional, enum: active, inactive)
+    //   - country: string (optional)
     //   - currency: string (optional)
     //   - createdAt: timestamp (required)
     //   - uid: string (required, matches owner)
@@ -74,6 +75,7 @@ service cloud.firestore {
              (!('investmentValue' in data) || data.investmentValue == null || (data.investmentValue is number)) &&
              (!('platformInvestments' in data) || data.platformInvestments == null || (data.platformInvestments is map)) &&
              (!('status' in data) || data.status == null || (data.status in ['active', 'inactive'])) &&
+             (!('country' in data) || data.country == null || (data.country is string && data.country.size() <= 100)) &&
              (!('currency' in data) || data.currency == null || (data.currency is string && data.currency.size() <= 10)) &&
              data.createdAt is timestamp &&
              data.uid is string;
