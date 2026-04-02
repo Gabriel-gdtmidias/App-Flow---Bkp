@@ -208,6 +208,7 @@ interface Client {
   platforms?: string[];
   investmentValue?: number;
   platformInvestments?: Record<string, number>;
+  platformStatuses?: Record<string, 'active' | 'blocked' | 'payment_error'>;
   status?: 'active' | 'inactive';
   country?: string;
   currency?: string;
@@ -250,6 +251,7 @@ export default function App() {
   const [newClientPlatforms, setNewClientPlatforms] = useState<string[]>(["Google", "Meta"]);
   const [newClientInvestment, setNewClientInvestment] = useState<string>("");
   const [newClientPlatformInvestments, setNewClientPlatformInvestments] = useState<Record<string, string>>({});
+  const [newClientPlatformStatuses, setNewClientPlatformStatuses] = useState<Record<string, 'active' | 'blocked' | 'payment_error'>>({});
   const [newClientStatus, setNewClientStatus] = useState<'active' | 'inactive'>('active');
   const [newClientCountry, setNewClientCountry] = useState("Brasil");
   const [newClientCurrency, setNewClientCurrency] = useState("BRL");
@@ -258,6 +260,7 @@ export default function App() {
   const [editingClientId, setEditingClientId] = useState("");
   const [editingClientName, setEditingClientName] = useState("");
   const [editingClientPlatformInvestments, setEditingClientPlatformInvestments] = useState<Record<string, string>>({});
+  const [editingClientPlatformStatuses, setEditingClientPlatformStatuses] = useState<Record<string, 'active' | 'blocked' | 'payment_error'>>({});
   const [editingClientStatus, setEditingClientStatus] = useState<'active' | 'inactive'>('active');
   const [editingClientCountry, setEditingClientCountry] = useState("Brasil");
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -770,6 +773,7 @@ export default function App() {
         platformInvestments: Object.fromEntries(
           Object.entries(newClientPlatformInvestments).map(([k, v]) => [k, parseFloat(v) || 0])
         ),
+        platformStatuses: newClientPlatformStatuses,
         status: newClientStatus,
         country: newClientCountry,
         currency: newClientCurrency,
@@ -782,6 +786,7 @@ export default function App() {
       setNewClientPlatforms(["Google", "Meta"]);
       setNewClientInvestment("");
       setNewClientPlatformInvestments({});
+      setNewClientPlatformStatuses({});
       setNewClientStatus('active');
       setNewClientCountry("Brasil");
       setNewClientCurrency("BRL");
@@ -806,6 +811,7 @@ export default function App() {
         platformInvestments: Object.fromEntries(
           Object.entries(isEditingClient ? editingClientPlatformInvestments : newClientPlatformInvestments).map(([k, v]) => [k, parseFloat(v) || 0])
         ),
+        platformStatuses: isEditingClient ? editingClientPlatformStatuses : newClientPlatformStatuses,
         status: isEditingClient ? editingClientStatus : newClientStatus,
         country: isEditingClient ? editingClientCountry : newClientCountry,
         currency: newClientCurrency
@@ -819,7 +825,9 @@ export default function App() {
       setNewClientPlatforms(["Google", "Meta"]);
       setNewClientInvestment("");
       setNewClientPlatformInvestments({});
+      setNewClientPlatformStatuses({});
       setEditingClientPlatformInvestments({});
+      setEditingClientPlatformStatuses({});
       setNewClientStatus('active');
       setEditingClientStatus('active');
       setNewClientCountry("Brasil");
@@ -828,6 +836,28 @@ export default function App() {
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
     }
+  };
+
+  const handleOpenEditClient = (client: Client) => {
+    setEditingClientId(client.id);
+    setEditingClientName(client.name);
+    setNewClientNiche(client.niche || "");
+    setNewClientLogo(client.logo || null);
+    setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
+    setNewClientInvestment(client.investmentValue?.toString() || "");
+    setNewClientCurrency(client.currency || "BRL");
+    setNewClientStatus(client.status || 'active');
+    setEditingClientStatus(client.status || 'active');
+    setNewClientCountry(client.country || "Brasil");
+    setEditingClientCountry(client.country || "Brasil");
+    setEditingClientPlatformInvestments(
+      Object.fromEntries(
+        Object.entries(client.platformInvestments || {}).map(([k, v]) => [k, v.toString()])
+      )
+    );
+    setEditingClientPlatformStatuses(client.platformStatuses || {});
+    setIsEditingClient(true);
+    setIsClientModalOpen(true);
   };
 
   const handleSelectClient = (clientId: string) => {
@@ -845,7 +875,7 @@ export default function App() {
 
     setConfirmModal({
       isOpen: true,
-      title: clientId ? "Alterar Cliente" : "Remover Filtro",
+      title: clientId ? "Alterar Conta" : "Remover Filtro",
       message: clientId 
         ? `Deseja alterar o cliente selecionado para "${clientName}"?`
         : "Deseja remover o filtro de cliente e ver todos os registros?",
@@ -862,7 +892,7 @@ export default function App() {
     
     setConfirmModal({
       isOpen: true,
-      title: "Excluir Cliente",
+      title: "Excluir Conta",
       message: "Tem certeza que deseja remover este cliente e TODO o seu histórico? Esta ação não pode ser desfeita.",
       type: 'danger',
       onConfirm: async () => {
@@ -957,7 +987,7 @@ export default function App() {
       const summary = await summarizeHistory(
         records, 
         periodText, 
-        clients.find(c => c.id === selectedClientId)?.name || "Cliente"
+        clients.find(c => c.id === selectedClientId)?.name || "Conta"
       );
       setHistorySummary(summary);
       
@@ -1047,7 +1077,7 @@ export default function App() {
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      const fileName = `GDT_Insights_💡_${clients.find(c => c.id === selectedClientId)?.name || "Cliente"}_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.pdf`;
+      const fileName = `GDT_Insights_💡_${clients.find(c => c.id === selectedClientId)?.name || "Conta"}_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.pdf`;
       pdf.save(fileName);
     } catch (err) {
       console.error("Error exporting PDF:", err);
@@ -1120,6 +1150,25 @@ export default function App() {
       if (startDate && date < startDate) return false;
       if (endDate && date > endDate) return false;
       return true;
+    });
+  };
+
+  const handleDeleteHistoryItem = async (id: string) => {
+    if (!user) return;
+    
+    setConfirmModal({
+      isOpen: true,
+      title: "Excluir Registro",
+      message: "Tem certeza que deseja apagar este registro do histórico? Esta ação não pode ser desfeita.",
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, "histories", id));
+        } catch (err) {
+          console.error("Error deleting history item:", err);
+          setError("Erro ao excluir registro.");
+        }
+      }
     });
   };
 
@@ -1358,6 +1407,24 @@ export default function App() {
     }
   };
 
+  const formatForMonday = (text: string, mode: SummaryMode) => {
+    let formatted = text;
+    
+    // WhatsApp and Monday.com often prefer * for bold in simple text contexts
+    if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary" || mode === "sales_analyzer" || mode === "ad_copy_generator" || mode === "account_actions" || mode === "communication") {
+      formatted = formatted
+        .replace(/\*\*(.*?)\*\*/g, '*$1*')
+        .replace(/__(.*?)__/g, '*$1*');
+        
+      // Add extra spacing for better readability if needed
+      if (mode === "account_actions" || mode === "communication") {
+        formatted = formatted.replace(/\n/g, "\n\n");
+      }
+    }
+    
+    return formatted;
+  };
+
   const handleCopy = async () => {
     const currentSummary = mode === "ad_copy_generator" ? generatedAdCopy : summaries[mode!];
     if (currentSummary && resultRef.current) {
@@ -1379,12 +1446,8 @@ export default function App() {
           plainText = text;
         }
 
-        // WhatsApp uses * for bold instead of **
-        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary" || mode === "sales_analyzer" || mode === "ad_copy_generator") {
-          plainText = plainText
-            .replace(/\*\*(.*?)\*\*/g, '*$1*')
-            .replace(/__(.*?)__/g, '*$1*');
-        }
+        // Apply Monday.com/WhatsApp formatting
+        plainText = formatForMonday(plainText, mode!);
 
         const htmlContent = resultRef.current.innerHTML;
 
@@ -1417,15 +1480,25 @@ export default function App() {
           plainText = text;
         }
 
-        if (mode === "group_update" || mode === "client_response" || mode === "meeting_summary" || mode === "sales_analyzer" || mode === "ad_copy_generator") {
-          plainText = plainText
-            .replace(/\*\*(.*?)\*\*/g, '*$1*')
-            .replace(/__(.*?)__/g, '*$1*');
-        }
+        // Apply Monday.com/WhatsApp formatting
+        plainText = formatForMonday(plainText, mode!);
+
         navigator.clipboard.writeText(plainText);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }
+    }
+  };
+
+  const handleCopyHistoryRecord = async (record: any) => {
+    try {
+      const formatted = formatForMonday(record.content, record.mode);
+      await navigator.clipboard.writeText(formatted);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Copy failed:", err);
+      setError("Erro ao copiar conteúdo.");
     }
   };
 
@@ -1675,7 +1748,7 @@ export default function App() {
       communication: "Comunicados no Grupo",
       account_actions: "Ações da Conta",
       group_update: "Atualização do Grupo",
-      client_response: "Resposta ao Cliente",
+      client_response: "Resposta à Conta",
       meeting_summary: "Análise Estratégica de Reunião",
       sales_analyzer: "Análise de Vendas WhatsApp",
       ad_copy_generator: "Gerador de Copy para Anúncios"
@@ -1686,7 +1759,7 @@ export default function App() {
         <header className="flex items-center justify-between border-b pb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{categoryLabels[threadMode]}</h1>
-            <p className="text-sm text-gray-500">Histórico completo: {client?.name || "Cliente"}</p>
+            <p className="text-sm text-gray-500">Histórico completo: {client?.name || "Conta"}</p>
           </div>
           <button 
             onClick={() => window.close()}
@@ -1888,10 +1961,10 @@ export default function App() {
                 <button 
                   onClick={() => setIsClientsTabOpen(true)}
                   className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-600 rounded-xl border border-purple-100 hover:bg-purple-100 transition-all shadow-sm group"
-                  title="Gestão de Clientes"
+                  title="Gestão de Contas"
                 >
                   <Users size={18} className="group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold hidden md:block">Clientes</span>
+                  <span className="text-xs font-bold hidden md:block">Contas</span>
                 </button>
 
                 <button 
@@ -1965,8 +2038,8 @@ export default function App() {
                   <Users size={40} />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-2xl font-bold text-gray-900">Selecione um cliente para começar</h3>
-                  <p className="text-gray-500">Escolha um cliente da sua lista ou utilize o sistema sem vínculo específico.</p>
+                  <h3 className="text-2xl font-bold text-gray-900">Selecione uma conta para começar</h3>
+                  <p className="text-gray-500">Escolha uma conta da sua lista ou utilize o sistema sem vínculo específico.</p>
                 </div>
                 
                 <div className="flex flex-col gap-6 items-center">
@@ -1978,29 +2051,10 @@ export default function App() {
                       onEdit={(client) => {
                         setConfirmModal({
                           isOpen: true,
-                          title: "Editar Cliente",
-                          message: `Deseja fazer alterações no cliente "${client.name}"?`,
+                          title: "Editar Conta",
+                          message: `Deseja fazer alterações na conta "${client.name}"?`,
                           type: 'warning',
-                          onConfirm: () => {
-                            setEditingClientId(client.id);
-                            setEditingClientName(client.name);
-                            setNewClientNiche(client.niche || "");
-                            setNewClientLogo(client.logo || null);
-                            setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
-                            setNewClientInvestment(client.investmentValue?.toString() || "");
-                            setNewClientCurrency(client.currency || "BRL");
-                            setNewClientStatus(client.status || 'active');
-                            setEditingClientStatus(client.status || 'active');
-                            setNewClientCountry(client.country || "Brasil");
-                            setEditingClientCountry(client.country || "Brasil");
-                            setEditingClientPlatformInvestments(
-                              Object.fromEntries(
-                                Object.entries(client.platformInvestments || {}).map(([k, v]) => [k, v.toString()])
-                              )
-                            );
-                            setIsEditingClient(true);
-                            setIsClientModalOpen(true);
-                          }
+                          onConfirm: () => handleOpenEditClient(client)
                         });
                       }}
                     />
@@ -2012,7 +2066,7 @@ export default function App() {
                       className="flex-1 w-full py-4 bg-white border border-black/5 text-gray-600 rounded-2xl font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
                     >
                       <UserPlus size={20} className="text-emerald-500" />
-                      Novo Cliente
+                      Nova Conta
                     </button>
                     <div className="hidden sm:block h-8 w-px bg-gray-200" />
                     <button 
@@ -2129,7 +2183,7 @@ export default function App() {
                     <span className="text-[10px] font-black text-purple-600 bg-purple-50 px-2 py-1 rounded-lg uppercase tracking-widest">Carteira</span>
                   </div>
                   <div>
-                    <h4 className="text-2xl font-black text-gray-900">{clients.length} Clientes</h4>
+                    <h4 className="text-2xl font-black text-gray-900">{clients.length} Contas</h4>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Ativos no sistema</p>
                   </div>
                 </div>
@@ -2201,7 +2255,7 @@ export default function App() {
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-lg flex items-center gap-2">
                       <Users size={20} className="text-emerald-500" />
-                      Demanda por Cliente {dashboardClientFilter && <span className="text-sm font-normal text-gray-400">({clients.find(c => c.id === dashboardClientFilter)?.name})</span>}
+                      Demanda por Conta {dashboardClientFilter && <span className="text-sm font-normal text-gray-400">({clients.find(c => c.id === dashboardClientFilter)?.name})</span>}
                     </h4>
                     {dashboardClientFilter && (
                       <button 
@@ -2281,7 +2335,7 @@ export default function App() {
                             { name: 'Comunicados no Grupo', value: filteredDashboardHistories.filter(h => h.mode === 'communication').length, color: '#10b981' },
                             { name: 'Ações da Conta', value: filteredDashboardHistories.filter(h => h.mode === 'account_actions').length, color: '#3b82f6' },
                             { name: 'Atualização do Grupo', value: filteredDashboardHistories.filter(h => h.mode === 'group_update').length, color: '#8b5cf6' },
-                            { name: 'Resposta ao Cliente', value: filteredDashboardHistories.filter(h => h.mode === 'client_response').length, color: '#f59e0b' },
+                            { name: 'Resposta à Conta', value: filteredDashboardHistories.filter(h => h.mode === 'client_response').length, color: '#f59e0b' },
                             { name: 'Análise Estratégica de Reunião', value: filteredDashboardHistories.filter(h => h.mode === 'meeting_summary').length, color: '#6366f1' },
                             { name: 'Análise de Vendas', value: filteredDashboardHistories.filter(h => h.mode === 'sales_analyzer').length, color: '#22c55e' },
                           ].filter(d => d.value > 0)}
@@ -2317,7 +2371,7 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-lg flex items-center gap-2">
                     <Search size={20} className="text-purple-500" />
-                    Detalhamento por Cliente
+                    Detalhamento por Conta
                   </h4>
                   {dashboardClientFilter && (
                     <button 
@@ -2325,7 +2379,7 @@ export default function App() {
                       className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center gap-2"
                     >
                       <X size={12} />
-                      Limpar Filtro de Cliente
+                      Limpar Filtro de Conta
                     </button>
                   )}
                 </div>
@@ -2419,7 +2473,7 @@ export default function App() {
                                   className="flex-1 py-3 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/10 flex items-center justify-center gap-2"
                                 >
                                   <Briefcase size={14} />
-                                  Gerenciar Cliente
+                                  Gerenciar Conta
                                 </button>
                               </div>
                             </div>
@@ -2439,12 +2493,17 @@ export default function App() {
                       <div className="space-y-1">
                         <h3 className="text-lg font-bold flex items-center gap-2">
                           <Users size={20} className="text-emerald-500" />
-                          {selectedClient ? selectedClient.name : (isGenericMode ? "Modo Genérico" : "Selecione o Cliente")}
+                          <div className="flex items-center gap-2">
+                            {selectedClient && Object.values(selectedClient.platformStatuses || {}).some(s => s === 'blocked' || s === 'payment_error') && (
+                              <AlertTriangle size={18} className="text-orange-500 animate-pulse" />
+                            )}
+                            {selectedClient ? selectedClient.name : (isGenericMode ? "Modo Genérico" : "Selecione a Conta")}
+                          </div>
                         </h3>
                         <p className="text-xs text-gray-500">
                           {isGenericMode 
                             ? "Trabalhando em modo genérico. O histórico não será salvo automaticamente." 
-                            : "O histórico será salvo automaticamente para o cliente selecionado."}
+                            : "O histórico será salvo automaticamente para a conta selecionada."}
                         </p>
                       </div>
                       <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto flex-1">
@@ -2455,41 +2514,29 @@ export default function App() {
                           onEdit={(client) => {
                             setConfirmModal({
                               isOpen: true,
-                              title: "Editar Cliente",
-                              message: `Deseja fazer alterações no cliente "${client.name}"?`,
+                              title: "Editar Conta",
+                              message: `Deseja fazer alterações na conta "${client.name}"?`,
                               type: 'warning',
-                              onConfirm: () => {
-                                setEditingClientId(client.id);
-                                setEditingClientName(client.name);
-                                setNewClientNiche(client.niche || "");
-                                setNewClientLogo(client.logo || null);
-                                setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
-                                setNewClientInvestment(client.investmentValue?.toString() || "");
-                                setNewClientCurrency(client.currency || "BRL");
-                                setNewClientStatus(client.status || 'active');
-                                setEditingClientStatus(client.status || 'active');
-                                setNewClientCountry(client.country || "Brasil");
-                                setEditingClientCountry(client.country || "Brasil");
-                                setEditingClientPlatformInvestments(
-                                  Object.fromEntries(
-                                    Object.entries(client.platformInvestments || {}).map(([k, v]) => [k, v.toString()])
-                                  )
-                                );
-                                setIsEditingClient(true);
-                                setIsClientModalOpen(true);
-                              }
+                              onConfirm: () => handleOpenEditClient(client)
                             });
                           }}
                         />
                         <button 
                           onClick={() => setIsClientModalOpen(true)}
                           className="p-2.5 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
-                          title="Adicionar Cliente"
+                          title="Adicionar Conta"
                         >
                           <UserPlus size={20} />
                         </button>
                         {selectedClientId && (
                           <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => selectedClient && handleOpenEditClient(selectedClient)}
+                              className="p-2.5 bg-white border border-blue-100 text-blue-500 rounded-2xl hover:bg-blue-50 transition-all"
+                              title="Ver Cadastro da Conta"
+                            >
+                              <FileText size={20} />
+                            </button>
                             <button 
                               onClick={() => handleClearHistory()}
                               className="p-2.5 bg-white border border-orange-100 text-orange-500 rounded-2xl hover:bg-orange-50 transition-all"
@@ -2500,7 +2547,7 @@ export default function App() {
                             <button 
                               onClick={() => handleDeleteClient(selectedClientId)}
                               className="p-2.5 bg-white border border-red-100 text-red-500 rounded-2xl hover:bg-red-50 transition-all"
-                              title="Remover Cliente"
+                              title="Remover Conta"
                             >
                               <UserMinus size={20} />
                             </button>
@@ -2525,7 +2572,7 @@ export default function App() {
                     className="flex items-center gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors"
                   >
                     <HistoryIcon size={18} />
-                    {isHistoryOpen ? "Ocultar Histórico" : "Ver Histórico do Cliente"}
+                    {isHistoryOpen ? "Ocultar Histórico" : "Ver Histórico da Conta"}
                     <span className="bg-emerald-100 px-2 py-0.5 rounded-full text-[10px]">{clientHistories.length}</span>
                   </button>
                 </div>
@@ -2667,7 +2714,7 @@ export default function App() {
                             <div>
                               <h2 className="text-2xl font-bold" style={{ color: '#111827' }}>GDT Insights 💡 — Relatório Estratégico</h2>
                               <p className="text-sm font-medium" style={{ color: '#6b7280' }}>Visão executiva baseada nos dados selecionados</p>
-                              <p className="text-xs" style={{ color: '#9ca3af' }}>Cliente: {clients.find(c => c.id === selectedClientId)?.name}</p>
+                              <p className="text-xs" style={{ color: '#9ca3af' }}>Conta: {clients.find(c => c.id === selectedClientId)?.name}</p>
                             </div>
                             <div className="text-right">
                               <p className="text-xs font-bold uppercase" style={{ color: '#059669' }}>Período</p>
@@ -3404,7 +3451,7 @@ export default function App() {
               </div>
             )) : [
               { step: "1", title: "Prints de Ads", desc: "Tire prints das métricas do Meta ou Google Ads." },
-              { step: "2", title: "Áudios do Cliente", desc: "Anexe áudios com briefings ou feedbacks para transcrição automática." },
+              { step: "2", title: "Áudios da Conta", desc: "Anexe áudios com briefings ou feedbacks para transcrição automática." },
               { step: "3", title: "Contexto Extra", desc: "Cole conversas de texto para complementar a análise." },
               { step: "4", title: "Insights Prontos", desc: "Gere análises estratégicas em segundos." }
             ].map((item) => (
@@ -3435,7 +3482,7 @@ export default function App() {
                       <Users size={28} />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-bold text-gray-900">Gestão de Clientes</h3>
+                      <h3 className="text-2xl font-bold text-gray-900">Gestão de Contas</h3>
                       <p className="text-sm text-gray-500 font-medium">Visualize e gerencie sua carteira de clientes estrategicamente.</p>
                     </div>
                   </div>
@@ -3460,14 +3507,14 @@ export default function App() {
                         <Users size={48} />
                       </div>
                       <div className="space-y-2">
-                        <p className="font-bold text-xl uppercase tracking-widest">Nenhum cliente cadastrado</p>
-                        <p className="text-sm max-w-xs mx-auto">Comece adicionando seu primeiro cliente para gerenciar métricas e históricos.</p>
+                        <p className="font-bold text-xl uppercase tracking-widest">Nenhuma conta cadastrada</p>
+                        <p className="text-sm max-w-xs mx-auto">Comece adicionando sua primeira conta de anúncios para gerenciar métricas e históricos.</p>
                       </div>
                       <button 
                         onClick={() => setIsClientModalOpen(true)}
                         className="px-8 py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
                       >
-                        Cadastrar Primeiro Cliente
+                        Cadastrar Primeira Conta
                       </button>
                     </div>
                   ) : (
@@ -3481,27 +3528,10 @@ export default function App() {
                             <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingClientId(client.id);
-                                  setEditingClientName(client.name);
-                                  setNewClientNiche(client.niche || "");
-                                  setNewClientLogo(client.logo || null);
-                                  setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
-                                  setNewClientInvestment(client.investmentValue?.toString() || "");
-                                  setNewClientCurrency(client.currency || "BRL");
-                                  setNewClientStatus(client.status || 'active');
-                                  setEditingClientStatus(client.status || 'active');
-                                  setNewClientCountry(client.country || "Brasil");
-                                  setEditingClientCountry(client.country || "Brasil");
-                                  setEditingClientPlatformInvestments(
-                                    Object.fromEntries(
-                                      Object.entries(client.platformInvestments || {}).map(([k, v]) => [k, v.toString()])
-                                    )
-                                  );
-                                  setIsEditingClient(true);
-                                  setIsClientModalOpen(true);
+                                  handleOpenEditClient(client);
                                 }}
                               className="p-2 bg-white text-blue-600 rounded-xl shadow-lg hover:bg-blue-50 transition-all border border-blue-100"
-                              title="Editar Cliente"
+                              title="Editar Conta"
                             >
                               <Edit3 size={16} />
                             </button>
@@ -3511,7 +3541,7 @@ export default function App() {
                                 handleDeleteClient(client.id);
                               }}
                               className="p-2 bg-white text-red-600 rounded-xl shadow-lg hover:bg-red-50 transition-all border border-red-100"
-                              title="Excluir Cliente"
+                              title="Excluir Conta"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -3545,27 +3575,55 @@ export default function App() {
                           </div>
 
                           <div className="space-y-4 flex-1">
+                            {Object.values(client.platformStatuses || {}).some(s => s === 'payment_error') && (
+                              <div className="p-3 bg-orange-50 border border-orange-100 rounded-2xl flex items-center gap-3 animate-pulse">
+                                <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 shrink-0">
+                                  <AlertTriangle size={16} />
+                                </div>
+                                <p className="text-[10px] font-bold text-orange-700 uppercase tracking-tight leading-tight">
+                                  Atenção: Erro de pagamento detectado. Informe o cliente imediatamente.
+                                </p>
+                              </div>
+                            )}
+
                             <div className="flex flex-wrap gap-2">
                               {client.platforms?.map((p: string) => {
                                 const platformMonthly = client.platformInvestments?.[p] || 0;
                                 const platformDaily = platformMonthly / 30;
+                                const status = client.platformStatuses?.[p] || 'active';
                                 const percentage = client.investmentValue && client.investmentValue > 0 
                                   ? (platformMonthly / client.investmentValue) * 100 
                                   : 0;
                                 
                                 return (
-                                  <div key={`${client.id}-plat-${p}`} className="flex flex-col gap-1 px-3 py-2 bg-gray-50 rounded-xl border border-black/5 min-w-[100px]">
+                                  <div key={`${client.id}-plat-${p}`} className="flex flex-col gap-1.5 px-3 py-2.5 bg-gray-50 rounded-2xl border border-black/5 min-w-[110px] group/plat transition-all hover:bg-white hover:border-purple-100">
                                     <div className="flex justify-between items-center gap-2">
-                                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{p}</span>
-                                      {percentage > 0 && (
-                                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
-                                          {percentage.toFixed(0)}%
-                                        </span>
-                                      )}
+                                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover/plat:text-purple-600 transition-colors">{p}</span>
+                                      <div className="flex items-center gap-1.5">
+                                        {percentage > 0 && (
+                                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100/50">
+                                            {percentage.toFixed(0)}%
+                                          </span>
+                                        )}
+                                        <div className={cn(
+                                          "w-2 h-2 rounded-full shadow-sm",
+                                          status === 'active' ? "bg-emerald-500" :
+                                          status === 'blocked' ? "bg-red-500" : "bg-orange-500"
+                                        )} title={status === 'active' ? 'Ativa' : status === 'blocked' ? 'Bloqueada' : 'Erro de Pagamento'} />
+                                      </div>
                                     </div>
-                                    <span className="text-xs font-bold text-gray-900">
-                                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: client.currency || 'BRL' }).format(platformDaily)}/dia
-                                    </span>
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-black text-gray-900">
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: client.currency || 'BRL' }).format(platformDaily)}/dia
+                                      </span>
+                                      <span className={cn(
+                                        "text-[8px] font-black uppercase tracking-tighter",
+                                        status === 'active' ? "text-emerald-600" :
+                                        status === 'blocked' ? "text-red-600" : "text-orange-600"
+                                      )}>
+                                        {status === 'active' ? 'Ativa' : status === 'blocked' ? 'Bloqueada' : 'Erro Pgto'}
+                                      </span>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -3598,7 +3656,7 @@ export default function App() {
                               }}
                               className="text-[10px] font-black text-purple-600 uppercase tracking-widest hover:underline"
                             >
-                              Selecionar Cliente
+                              Selecionar Conta
                             </button>
                           </div>
                         </div>
@@ -3686,6 +3744,8 @@ export default function App() {
               setInvestment={setNewClientInvestment}
               platformInvestments={isEditingClient ? editingClientPlatformInvestments : newClientPlatformInvestments}
               setPlatformInvestments={isEditingClient ? setEditingClientPlatformInvestments : setNewClientPlatformInvestments}
+              platformStatuses={isEditingClient ? editingClientPlatformStatuses : newClientPlatformStatuses}
+              setPlatformStatuses={isEditingClient ? setEditingClientPlatformStatuses : setNewClientPlatformStatuses}
               status={isEditingClient ? editingClientStatus : newClientStatus}
               setStatus={isEditingClient ? setEditingClientStatus : setNewClientStatus}
               country={isEditingClient ? editingClientCountry : newClientCountry}
@@ -3706,6 +3766,7 @@ export default function App() {
                 setSelectedHistoryRecord(record);
                 setIsHistoryDetailModalOpen(true);
               }}
+              onDelete={handleDeleteHistoryItem}
             />
           )}
 
@@ -3719,6 +3780,7 @@ export default function App() {
                 setSelectedHistoryRecord(record);
                 setIsHistoryDetailModalOpen(true);
               }}
+              onDelete={handleDeleteHistoryItem}
             />
           )}
 
@@ -3727,6 +3789,7 @@ export default function App() {
               isOpen={isHistoryDetailModalOpen}
               onClose={() => setIsHistoryDetailModalOpen(false)}
               record={selectedHistoryRecord}
+              onCopy={handleCopyHistoryRecord}
             />
           )}
 
@@ -3900,6 +3963,8 @@ const ClientModal = ({
   setInvestment,
   platformInvestments,
   setPlatformInvestments,
+  platformStatuses,
+  setPlatformStatuses,
   status,
   setStatus,
   country,
@@ -3932,16 +3997,24 @@ const ClientModal = ({
       const newInvestments = { ...platformInvestments };
       delete newInvestments[p];
       setPlatformInvestments(newInvestments);
+      
+      const newStatuses = { ...platformStatuses };
+      delete newStatuses[p];
+      setPlatformStatuses(newStatuses);
+
       const total = Object.values(newInvestments).reduce((acc: number, curr: any) => acc + (parseFloat(curr) || 0), 0);
       setInvestment(total.toString());
     } else {
       setPlatforms([...platforms, p]);
+      setPlatformStatuses({ ...platformStatuses, [p]: 'active' });
     }
   };
 
   const addCustomPlatform = () => {
-    if (customPlatform.trim() && !platforms.includes(customPlatform.trim())) {
-      setPlatforms([...platforms, customPlatform.trim()]);
+    const trimmed = customPlatform.trim();
+    if (trimmed && !platforms.includes(trimmed)) {
+      setPlatforms([...platforms, trimmed]);
+      setPlatformStatuses({ ...platformStatuses, [trimmed]: 'active' });
       setCustomPlatform("");
     }
   };
@@ -3955,7 +4028,7 @@ const ClientModal = ({
       >
         <div className="flex items-center justify-between mb-8">
           <h3 className="text-2xl font-bold text-gray-900">
-            {isEditing ? "Editar Cliente" : "Novo Cliente"}
+            {isEditing ? "Editar Conta de Anúncios" : "Nova Conta de Anúncios"}
           </h3>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
             <X size={24} />
@@ -3966,7 +4039,7 @@ const ClientModal = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Logo do Cliente</label>
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Logo da Conta</label>
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden group relative">
                     {logo ? (
@@ -3992,7 +4065,7 @@ const ClientModal = ({
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Nome do Cliente</label>
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Nome da Conta</label>
                 <input 
                   type="text" 
                   value={clientName}
@@ -4031,34 +4104,6 @@ const ClientModal = ({
                     <option key={c} value={c}>{COUNTRY_DATA[c].flag} {c}</option>
                   ))}
                 </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Status do Cliente</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setStatus('active')}
-                    className={cn(
-                      "flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
-                      status === 'active' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
-                    )}
-                  >
-                    <div className={cn("w-2 h-2 rounded-full", status === 'active' ? "bg-white" : "bg-emerald-500")}></div>
-                    Ativo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStatus('inactive')}
-                    className={cn(
-                      "flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
-                      status === 'inactive' ? "bg-red-500 text-white shadow-lg shadow-red-500/20" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
-                    )}
-                  >
-                    <div className={cn("w-2 h-2 rounded-full", status === 'inactive' ? "bg-white" : "bg-red-500")}></div>
-                    Inativo
-                  </button>
-                </div>
               </div>
 
               <div className="space-y-2">
@@ -4137,29 +4182,61 @@ const ClientModal = ({
                         const percentage = totalValue > 0 ? (platformValue / totalValue) * 100 : 0;
                         
                         return (
-                          <div key={p} className="flex flex-col gap-2 bg-gray-50 p-3 rounded-2xl border border-black/5">
+                          <div key={p} className="flex flex-col gap-4 bg-gray-50 p-5 rounded-3xl border border-black/5 shadow-sm">
                             <div className="flex justify-between items-center">
-                              <span className="text-xs font-bold text-gray-600 truncate">{p}</span>
+                              <div className="flex items-center gap-2">
+                                <div className={cn(
+                                  "w-2 h-2 rounded-full",
+                                  (platformStatuses[p] || 'active') === 'active' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" :
+                                  (platformStatuses[p] || 'active') === 'blocked' ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
+                                  "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]"
+                                )} />
+                                <span className="text-sm font-black text-gray-900 uppercase tracking-widest">{p}</span>
+                              </div>
                               {percentage > 0 && (
-                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">
+                                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
                                   {percentage.toFixed(0)}%
                                 </span>
                               )}
                             </div>
-                            <div className="flex gap-2">
-                              <span className="text-gray-400 font-bold self-center text-xs">{currency}</span>
-                              <input 
-                                type="number" 
-                                value={platformInvestments[p] || ""}
-                                onChange={(e) => {
-                                  const newInvestments = { ...platformInvestments, [p]: e.target.value };
-                                  setPlatformInvestments(newInvestments);
-                                  const total = Object.values(newInvestments).reduce((acc: number, curr: any) => acc + (parseFloat(curr) || 0), 0);
-                                  setInvestment(total.toString());
-                                }}
-                                className="w-full bg-white px-4 py-2 rounded-xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium text-sm"
-                                placeholder="0,00"
-                              />
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Investimento</label>
+                                <div className="relative group">
+                                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black text-xs group-focus-within:text-emerald-500 transition-colors">{currency}</span>
+                                  <input 
+                                    type="number" 
+                                    value={platformInvestments[p] || ""}
+                                    onChange={(e) => {
+                                      const newInvestments = { ...platformInvestments, [p]: e.target.value };
+                                      setPlatformInvestments(newInvestments);
+                                      const total = Object.values(newInvestments).reduce((acc: number, curr: any) => acc + (parseFloat(curr) || 0), 0);
+                                      setInvestment(total.toString());
+                                    }}
+                                    className="w-full bg-white pl-12 pr-4 py-3 rounded-2xl border border-black/5 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500/50 outline-none transition-all font-bold text-sm shadow-sm"
+                                    placeholder="0,00"
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Status da Plataforma</label>
+                                <select
+                                  value={platformStatuses[p] || 'active'}
+                                  onChange={(e) => setPlatformStatuses({ ...platformStatuses, [p]: e.target.value as any })}
+                                  className={cn(
+                                    "w-full px-4 py-3 rounded-2xl border outline-none font-black text-xs transition-all shadow-sm cursor-pointer",
+                                    (platformStatuses[p] || 'active') === 'active' ? "bg-emerald-50 border-emerald-100 text-emerald-600 focus:ring-4 focus:ring-emerald-500/10" :
+                                    (platformStatuses[p] || 'active') === 'blocked' ? "bg-red-50 border-red-100 text-red-600 focus:ring-4 focus:ring-red-500/10" :
+                                    "bg-orange-50 border-orange-100 text-orange-600 focus:ring-4 focus:ring-orange-500/10"
+                                  )}
+                                >
+                                  <option value="active">Ativa</option>
+                                  <option value="blocked">Bloqueada</option>
+                                  <option value="payment_error">Erro de Pagamento</option>
+                                </select>
+                              </div>
                             </div>
                           </div>
                         );
@@ -4195,7 +4272,7 @@ const ClientModal = ({
               disabled={!clientName.trim()}
               className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
             >
-              {isEditing ? "Salvar Alterações" : "Adicionar Cliente"}
+              {isEditing ? "Salvar Alterações" : "Adicionar Conta"}
             </button>
           </div>
         </form>
@@ -4204,7 +4281,7 @@ const ClientModal = ({
   );
 };
 
-const HistoryDetailModal = ({ isOpen, onClose, record }: any) => {
+const HistoryDetailModal = ({ isOpen, onClose, record, onCopy }: any) => {
   if (!isOpen || !record) return null;
 
   return (
@@ -4240,7 +4317,7 @@ const HistoryDetailModal = ({ isOpen, onClose, record }: any) => {
         <div className="pt-6 border-t border-black/5 flex justify-end">
           <button 
             onClick={() => {
-              navigator.clipboard.writeText(record.content);
+              onCopy(record);
               onClose();
             }}
             className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
@@ -4254,7 +4331,7 @@ const HistoryDetailModal = ({ isOpen, onClose, record }: any) => {
   );
 };
 
-const ClientHistoryModal = ({ isOpen, onClose, client, history, onViewDetail }: any) => {
+const ClientHistoryModal = ({ isOpen, onClose, client, history, onViewDetail, onDelete }: any) => {
   if (!isOpen || !client) return null;
 
   return (
@@ -4316,7 +4393,19 @@ const ClientHistoryModal = ({ isOpen, onClose, client, history, onViewDetail }: 
                       {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
                     </span>
                   </div>
-                  <ChevronRight size={16} className="text-gray-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(record.id);
+                      }}
+                      className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      title="Excluir Registro"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <ChevronRight size={16} className="text-gray-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                  </div>
                 </div>
                 <div className="prose prose-sm max-w-none text-gray-600 line-clamp-2 text-xs leading-relaxed">
                   <ReactMarkdown>{record.content}</ReactMarkdown>
@@ -4330,7 +4419,7 @@ const ClientHistoryModal = ({ isOpen, onClose, client, history, onViewDetail }: 
   );
 };
 
-const CategoryHistoryModal = ({ isOpen, onClose, category, history, onViewDetail }: any) => {
+const CategoryHistoryModal = ({ isOpen, onClose, category, history, onViewDetail, onDelete }: any) => {
   if (!isOpen || !category) return null;
 
   return (
@@ -4381,13 +4470,25 @@ const CategoryHistoryModal = ({ isOpen, onClose, category, history, onViewDetail
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black text-gray-900 uppercase tracking-widest">
-                      {record.clientName || "Cliente"}
+                      {record.clientName || "Conta"}
                     </span>
                     <span className="text-[10px] font-bold text-gray-400">
                       {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
                     </span>
                   </div>
-                  <ChevronRight size={16} className="text-gray-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(record.id);
+                      }}
+                      className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      title="Excluir Registro"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <ChevronRight size={16} className="text-gray-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                  </div>
                 </div>
                 <div className="prose prose-sm max-w-none text-gray-600 line-clamp-2 text-xs leading-relaxed">
                   <ReactMarkdown>{record.content}</ReactMarkdown>
@@ -4592,6 +4693,9 @@ const ClientSelector = ({
         }}
       >
         <Search size={16} className="text-gray-400 shrink-0" />
+        {selectedClient && !searchTerm && Object.values(selectedClient.platformStatuses || {}).some(s => s === 'blocked' || s === 'payment_error') && (
+          <AlertTriangle size={14} className="text-orange-500 shrink-0 animate-pulse" />
+        )}
         <input
           ref={inputRef}
           type="text"
@@ -4651,6 +4755,9 @@ const ClientSelector = ({
                   >
                     <div className="flex items-center gap-2">
                       {client.country && <span>{COUNTRY_DATA[client.country]?.flag}</span>}
+                      {Object.values(client.platformStatuses || {}).some(s => s === 'blocked' || s === 'payment_error') && (
+                        <AlertTriangle size={14} className="text-orange-500 shrink-0" />
+                      )}
                       <span>{client.name}</span>
                     </div>
                     <div className="flex items-center gap-2">

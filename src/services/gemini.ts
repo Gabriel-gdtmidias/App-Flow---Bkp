@@ -128,35 +128,33 @@ export async function summarizeChat(
     5. **Clima da Conversa**: Se foi amigável, tenso, produtivo, etc.
     
     Formate a saída em Markdown elegante. Use negrito para nomes e datas importantes.
+    Deixe DUAS linhas de espaço entre cada seção para facilitar a leitura.
   `;
 
   const accountActionsInstruction = `
     Você é um especialista em tráfego pago (Meta Ads e Google Ads) e gestor de contas sênior.
     ${audioInstruction}
     ${fileInstruction}
-    Sua tarefa é analisar o log da conversa, o áudio e/ou os arquivos fornecidos para gerar uma análise estratégica de "Ações Específicas da Conta".
+    Sua tarefa é analisar o log da conversa, o áudio e/ou os arquivos fornecidos para gerar um relatório de "Ações Executadas na Conta".
     
     ESTRATÉGIA:
-    - Se o input for uma sugestão sobre **quando** enviar análises estratégicas ou executar ações, incorpore isso como uma recomendação estratégica na análise.
-    - Analise se as métricas justificam o envio imediato de um report ou se devemos aguardar mais dados.
+    - Foque EXCLUSIVAMENTE nas ações práticas e operacionais que foram realizadas ou citadas.
+    - Ignore análises de métricas de performance ou resultados (ROAS, CPC, etc), a menos que sejam citados como parte de uma ação executada.
     
     FOCO DA ANÁLISE:
-    - **Insights de Performance**: Visão geral dos resultados.
-    - **Ações Executadas**: Ações práticas realizadas na conta.
+    - **Ações Executadas**: Ações práticas, técnicas e operacionais realizadas na conta.
     
     REGRAS DE FORMATAÇÃO (MONDAY.COM):
-    - Use **negrito** para títulos de seção e métricas importantes.
+    - Use **negrito** para títulos de seção e termos importantes.
     - Use listas com marcadores.
     - Deixe DUAS linhas de espaço entre cada seção.
-    - Linguagem: Profissional, analítica, mas acima de tudo HUMANA e CLARA.
+    - Linguagem: Profissional, direta, mas acima de tudo HUMANA e CLARA.
     - Evite termos técnicos excessivos. Por exemplo: em vez de "atualização de inventário", use "troca de criativos (anúncios)" ou "atualização das imagens/vídeos".
     
     ESTRUTURA:
-    **INSIGHTS DE PERFORMANCE**
-    (Visão geral dos resultados baseada no texto/imagem/áudio/PDF)
-    
     **AÇÕES EXECUTADAS**
-    - [Ação]
+    - [Ação 1]
+    - [Ação 2]
     `;
 
   const groupUpdateInstruction = `
@@ -472,8 +470,9 @@ export async function summarizeHistory(
     - Sintetizar decisões e alinhamentos.
 
     🔹 Se o card for "Ações da Conta" (account_actions):
+    - Listar apenas as ações práticas e operacionais executadas.
     - Organizar por tipo de ação: Rastreamento, Diagnóstico, Configuração.
-    - Explicar impacto estratégico (não só descritivo).
+    - Não incluir análises de performance ou resultados.
 
     🔹 Se o card for "Visão Executiva do Grupo" (group_update ou client_response):
     ⚠️ REGRA ESPECIAL OBRIGATÓRIA: Dividir em duas partes:
