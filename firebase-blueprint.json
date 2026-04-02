@@ -9,6 +9,27 @@
           "type": "string",
           "description": "The name of the client."
         },
+        "niche": {
+          "type": "string",
+          "description": "The business niche of the client."
+        },
+        "logo": {
+          "type": "string",
+          "description": "Base64 or URL of the client logo."
+        },
+        "platforms": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Traffic platforms used by the client."
+        },
+        "investmentValue": {
+          "type": "number",
+          "description": "Monthly investment value."
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency of the investment (BRL, USD, EUR, GBP, etc.)."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",

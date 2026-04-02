@@ -61,8 +61,13 @@ service cloud.firestore {
 
     function isValidClient(data) {
       return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             (!('niche' in data) || data.niche == null || (data.niche is string && data.niche.size() <= 200)) &&
+             (!('logo' in data) || data.logo == null || (data.logo is string && data.logo.size() <= 1000000)) &&
+             (!('platforms' in data) || data.platforms == null || (data.platforms is list)) &&
+             (!('investmentValue' in data) || data.investmentValue == null || (data.investmentValue is number)) &&
+             (!('currency' in data) || data.currency == null || (data.currency is string && data.currency.size() <= 10)) &&
              data.createdAt is timestamp &&
-             data.uid is string && data.uid == request.auth.uid;
+             data.uid is string;
     }
 
     function isValidHistory(data) {
@@ -70,14 +75,14 @@ service cloud.firestore {
              data.mode in ['communication', 'account_actions', 'group_update', 'client_response', 'meeting_summary', 'sales_analyzer', 'ad_copy_generator'] &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
              data.createdAt is timestamp &&
-             data.uid is string && data.uid == request.auth.uid;
+             data.uid is string;
     }
 
     function isValidSalesAnalysis(data) {
       return data.clientId is string &&
              data.niche is string && data.niche.size() > 0 && data.niche.size() <= 200 &&
              data.createdAt is timestamp &&
-             data.uid is string && data.uid == request.auth.uid;
+             data.uid is string;
     }
 
     // ===============================================================
@@ -91,21 +96,21 @@ service cloud.firestore {
 
     match /clients/{clientId} {
       allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && isValidClient(request.resource.data);
+      allow create: if isAuthenticated() && isValidClient(request.resource.data) && request.resource.data.uid == request.auth.uid;
       allow update: if (isDocOwner() || isAdmin()) && isValidClient(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner() || isAdmin();
     }
 
     match /histories/{historyId} {
       allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && isValidHistory(request.resource.data);
+      allow create: if isAuthenticated() && isValidHistory(request.resource.data) && request.resource.data.uid == request.auth.uid;
       allow update: if (isDocOwner() || isAdmin()) && isValidHistory(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner() || isAdmin();
     }
 
     match /sales_analyses/{analysisId} {
       allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && isValidSalesAnalysis(request.resource.data);
+      allow create: if isAuthenticated() && isValidSalesAnalysis(request.resource.data) && request.resource.data.uid == request.auth.uid;
       allow update: if (isDocOwner() || isAdmin()) && isValidSalesAnalysis(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner() || isAdmin();
     }

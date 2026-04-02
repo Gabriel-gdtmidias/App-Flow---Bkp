@@ -46,7 +46,10 @@ import {
   Paperclip,
   Edit2,
   BarChart3,
-  Megaphone
+  Megaphone,
+  DollarSign,
+  TrendingUp,
+  Edit3
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { jsPDF } from "jspdf";
@@ -180,6 +183,11 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 interface Client {
   id: string;
   name: string;
+  niche?: string;
+  logo?: string;
+  platforms?: string[];
+  investmentValue?: number;
+  currency?: string;
   createdAt: any;
   uid: string;
 }
@@ -212,7 +220,14 @@ export default function App() {
   const [isGenericMode, setIsGenericMode] = useState(false);
   const [clientHistories, setClientHistories] = useState<HistoryRecord[]>([]);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [isClientsTabOpen, setIsClientsTabOpen] = useState(false);
   const [newClientName, setNewClientName] = useState("");
+  const [newClientNiche, setNewClientNiche] = useState("");
+  const [newClientLogo, setNewClientLogo] = useState<string | null>(null);
+  const [newClientPlatforms, setNewClientPlatforms] = useState<string[]>(["Google", "Meta"]);
+  const [newClientInvestment, setNewClientInvestment] = useState<string>("");
+  const [newClientCurrency, setNewClientCurrency] = useState("BRL");
+  const [customPlatform, setCustomPlatform] = useState("");
   const [isEditingClient, setIsEditingClient] = useState(false);
   const [editingClientId, setEditingClientId] = useState("");
   const [editingClientName, setEditingClientName] = useState("");
@@ -719,10 +734,20 @@ export default function App() {
     try {
       await addDoc(collection(db, path), {
         name: newClientName.trim(),
+        niche: newClientNiche.trim(),
+        logo: newClientLogo,
+        platforms: newClientPlatforms,
+        investmentValue: parseFloat(newClientInvestment) || 0,
+        currency: newClientCurrency,
         createdAt: serverTimestamp(),
         uid: user.uid
       });
       setNewClientName("");
+      setNewClientNiche("");
+      setNewClientLogo(null);
+      setNewClientPlatforms(["Google", "Meta"]);
+      setNewClientInvestment("");
+      setNewClientCurrency("BRL");
       setIsClientModalOpen(false);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
@@ -736,11 +761,22 @@ export default function App() {
     const path = `clients/${editingClientId}`;
     try {
       await updateDoc(doc(db, "clients", editingClientId), {
-        name: editingClientName.trim()
+        name: editingClientName.trim(),
+        niche: newClientNiche.trim(),
+        logo: newClientLogo,
+        platforms: newClientPlatforms,
+        investmentValue: parseFloat(newClientInvestment) || 0,
+        currency: newClientCurrency
       });
       setIsEditingClient(false);
+      setIsClientModalOpen(false);
       setEditingClientId("");
       setEditingClientName("");
+      setNewClientNiche("");
+      setNewClientLogo(null);
+      setNewClientPlatforms(["Google", "Meta"]);
+      setNewClientInvestment("");
+      setNewClientCurrency("BRL");
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
     }
@@ -1802,6 +1838,15 @@ export default function App() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
                 <button 
+                  onClick={() => setIsClientsTabOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-600 rounded-xl border border-purple-100 hover:bg-purple-100 transition-all shadow-sm group"
+                  title="Gestão de Clientes"
+                >
+                  <Users size={18} className="group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold hidden md:block">Clientes</span>
+                </button>
+
+                <button 
                   onClick={() => setIsDashboardOpen(true)}
                   className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 hover:bg-emerald-100 transition-all shadow-sm group"
                   title="Painel de Métricas"
@@ -1891,7 +1936,13 @@ export default function App() {
                           onConfirm: () => {
                             setEditingClientId(client.id);
                             setEditingClientName(client.name);
+                            setNewClientNiche(client.niche || "");
+                            setNewClientLogo(client.logo || null);
+                            setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
+                            setNewClientInvestment(client.investmentValue?.toString() || "");
+                            setNewClientCurrency(client.currency || "BRL");
                             setIsEditingClient(true);
+                            setIsClientModalOpen(true);
                           }
                         });
                       }}
@@ -1984,6 +2035,83 @@ export default function App() {
                   >
                     <X size={20} />
                   </button>
+                </div>
+              </div>
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Total Managed Investment */}
+                <div className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+                      <DollarSign size={20} />
+                    </div>
+                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg uppercase tracking-widest">Total Gerido</span>
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-black text-gray-900">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                        clients.reduce((acc, c) => {
+                          if (c.currency === 'BRL') return acc + (c.investmentValue || 0);
+                          if (c.currency === 'USD') return acc + ((c.investmentValue || 0) * 5);
+                          if (c.currency === 'EUR') return acc + ((c.investmentValue || 0) * 5.5);
+                          return acc + (c.investmentValue || 0);
+                        }, 0)
+                      )}
+                    </h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Estimado em BRL</p>
+                  </div>
+                </div>
+
+                {/* Client Distribution */}
+                <div className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
+                      <Users size={20} />
+                    </div>
+                    <span className="text-[10px] font-black text-purple-600 bg-purple-50 px-2 py-1 rounded-lg uppercase tracking-widest">Carteira</span>
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-black text-gray-900">{clients.length} Clientes</h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Ativos no sistema</p>
+                  </div>
+                </div>
+
+                {/* Total Interactions */}
+                <div className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
+                      <MessageSquareText size={20} />
+                    </div>
+                    <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg uppercase tracking-widest">Interações</span>
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-black text-gray-900">{filteredDashboardHistories.length}</h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">No período selecionado</p>
+                  </div>
+                </div>
+
+                {/* Average Investment */}
+                <div className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600">
+                      <TrendingUp size={20} />
+                    </div>
+                    <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-2 py-1 rounded-lg uppercase tracking-widest">Ticket Médio</span>
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-black text-gray-900">
+                      {clients.length > 0 ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                        clients.reduce((acc, c) => {
+                          if (c.currency === 'BRL') return acc + (c.investmentValue || 0);
+                          if (c.currency === 'USD') return acc + ((c.investmentValue || 0) * 5);
+                          if (c.currency === 'EUR') return acc + ((c.investmentValue || 0) * 5.5);
+                          return acc + (c.investmentValue || 0);
+                        }, 0) / clients.length
+                      ) : "R$ 0,00"}
+                    </h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Por cliente (Estimado)</p>
+                  </div>
                 </div>
               </div>
 
@@ -2098,6 +2226,7 @@ export default function App() {
                             { name: 'Atualização do Grupo', value: filteredDashboardHistories.filter(h => h.mode === 'group_update').length, color: '#8b5cf6' },
                             { name: 'Resposta ao Cliente', value: filteredDashboardHistories.filter(h => h.mode === 'client_response').length, color: '#f59e0b' },
                             { name: 'Análise Estratégica de Reunião', value: filteredDashboardHistories.filter(h => h.mode === 'meeting_summary').length, color: '#6366f1' },
+                            { name: 'Análise de Vendas', value: filteredDashboardHistories.filter(h => h.mode === 'sales_analyzer').length, color: '#22c55e' },
                           ].filter(d => d.value > 0)}
                           cx="50%"
                           cy="50%"
@@ -2275,7 +2404,13 @@ export default function App() {
                               onConfirm: () => {
                                 setEditingClientId(client.id);
                                 setEditingClientName(client.name);
+                                setNewClientNiche(client.niche || "");
+                                setNewClientLogo(client.logo || null);
+                                setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
+                                setNewClientInvestment(client.investmentValue?.toString() || "");
+                                setNewClientCurrency(client.currency || "BRL");
                                 setIsEditingClient(true);
+                                setIsClientModalOpen(true);
                               }
                             });
                           }}
@@ -2724,8 +2859,8 @@ export default function App() {
                 id: "sales_analyzer", 
                 title: "Analisador de Vendas para WhatsApp", 
                 description: "Análise estratégica de conversas para aumento de conversão.", 
-                icon: BarChart3, 
-                color: "emerald",
+                icon: MessageCircle, 
+                color: "orange",
                 action: "Analisar",
                 extra: "conversas"
               },
@@ -2733,7 +2868,7 @@ export default function App() {
                 id: "ad_copy_generator", 
                 title: "Gerador de Copy para Anúncios", 
                 description: "Crie anúncios de alta conversão para Google e Meta Ads.", 
-                icon: Sparkles, 
+                icon: Megaphone, 
                 color: "pink",
                 action: "Gerar",
                 extra: "anúncios"
@@ -3220,6 +3355,155 @@ export default function App() {
             )}
           </AnimatePresence>
 
+          {/* Clients Tab Section */}
+          {isClientsTabOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                className="bg-white rounded-none sm:rounded-[40px] p-6 sm:p-10 w-full h-full sm:max-w-6xl sm:max-h-[90vh] overflow-hidden shadow-2xl border border-black/5 flex flex-col relative"
+              >
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600 shadow-sm">
+                      <Users size={28} />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900">Gestão de Clientes</h3>
+                      <p className="text-sm text-gray-500 font-medium">Visualize e gerencie sua carteira de clientes estrategicamente.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => setIsClientModalOpen(true)}
+                      className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+                    >
+                      <PlusCircle size={18} />
+                      Novo Cliente
+                    </button>
+                    <button onClick={() => setIsClientsTabOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-xl transition-all">
+                      <X size={24} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto pr-2">
+                  {clients.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-40 py-20">
+                      <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center text-gray-400">
+                        <Users size={48} />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="font-bold text-xl uppercase tracking-widest">Nenhum cliente cadastrado</p>
+                        <p className="text-sm max-w-xs mx-auto">Comece adicionando seu primeiro cliente para gerenciar métricas e históricos.</p>
+                      </div>
+                      <button 
+                        onClick={() => setIsClientModalOpen(true)}
+                        className="px-8 py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+                      >
+                        Cadastrar Primeiro Cliente
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">
+                      {clients.sort((a, b) => a.name.localeCompare(b.name)).map((client) => (
+                        <div 
+                          key={`client-tab-card-${client.id}`}
+                          className="bg-white rounded-3xl border border-black/5 p-6 hover:border-purple-200 hover:shadow-xl hover:shadow-purple-500/5 transition-all group relative overflow-hidden flex flex-col"
+                        >
+                          <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all flex gap-2">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingClientId(client.id);
+                                setEditingClientName(client.name);
+                                setNewClientNiche(client.niche || "");
+                                setNewClientLogo(client.logo || null);
+                                setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
+                                setNewClientInvestment(client.investmentValue?.toString() || "");
+                                setNewClientCurrency(client.currency || "BRL");
+                                setIsEditingClient(true);
+                                setIsClientModalOpen(true);
+                              }}
+                              className="p-2 bg-white text-blue-600 rounded-xl shadow-lg hover:bg-blue-50 transition-all border border-blue-100"
+                              title="Editar Cliente"
+                            >
+                              <Edit3 size={16} />
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClient(client.id);
+                              }}
+                              className="p-2 bg-white text-red-600 rounded-xl shadow-lg hover:bg-red-50 transition-all border border-red-100"
+                              title="Excluir Cliente"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-4 mb-6">
+                            <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-black/5 flex items-center justify-center overflow-hidden shadow-sm group-hover:scale-105 transition-transform duration-500">
+                              {client.logo ? (
+                                <img src={client.logo} alt={client.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="text-gray-300">
+                                  <ImageIcon size={32} />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-bold text-gray-900 truncate text-lg">{client.name}</h4>
+                              <p className="text-xs text-purple-600 font-bold uppercase tracking-widest truncate">{client.niche || "Nicho não definido"}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4 flex-1">
+                            <div className="flex flex-wrap gap-2">
+                              {client.platforms?.map((p: string) => (
+                                <span key={`${client.id}-plat-${p}`} className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-black/5">
+                                  {p}
+                                </span>
+                              ))}
+                            </div>
+
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-black/5 space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Investimento Mensal</span>
+                                <span className="text-sm font-black text-gray-900">
+                                  {client.investmentValue ? 
+                                    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: client.currency || 'BRL' }).format(client.investmentValue) : 
+                                    "---"
+                                  }
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-6 pt-4 border-t border-black/5 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ativo</span>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                handleSelectClient(client.id);
+                                setIsClientsTabOpen(false);
+                              }}
+                              className="text-[10px] font-black text-purple-600 uppercase tracking-widest hover:underline"
+                            >
+                              Selecionar Cliente
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+
           {/* Footer */}
         <footer className="pt-12 pb-6 border-t border-black/5 text-center space-y-4">
           <p className="text-sm text-[#9e9e9e]">
@@ -3269,12 +3553,27 @@ export default function App() {
                 setIsClientModalOpen(false);
                 setIsEditingClient(false);
                 setNewClientName("");
+                setNewClientNiche("");
+                setNewClientLogo(null);
+                setNewClientPlatforms(["Google", "Meta"]);
+                setNewClientInvestment("");
+                setNewClientCurrency("BRL");
                 setEditingClientId("");
                 setEditingClientName("");
               }}
               isEditing={isEditingClient}
               clientName={isEditingClient ? editingClientName : newClientName}
               setClientName={isEditingClient ? setEditingClientName : setNewClientName}
+              niche={newClientNiche}
+              setNiche={setNewClientNiche}
+              logo={newClientLogo}
+              setLogo={setNewClientLogo}
+              platforms={newClientPlatforms}
+              setPlatforms={setNewClientPlatforms}
+              investment={newClientInvestment}
+              setInvestment={setNewClientInvestment}
+              currency={newClientCurrency}
+              setCurrency={setNewClientCurrency}
               onSave={isEditingClient ? handleEditClient : handleAddClient}
             />
           )}
@@ -3473,18 +3772,59 @@ const ClientModal = ({
   isEditing, 
   clientName, 
   setClientName, 
+  niche,
+  setNiche,
+  logo,
+  setLogo,
+  platforms,
+  setPlatforms,
+  investment,
+  setInvestment,
+  currency,
+  setCurrency,
   onSave 
 }: any) => {
   if (!isOpen) return null;
+
+  const [customPlatform, setCustomPlatform] = useState("");
+
+  const investmentValue = parseFloat(investment) || 0;
+  const dailyInvestment = investmentValue / 30;
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogo(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const togglePlatform = (p: string) => {
+    if (platforms.includes(p)) {
+      setPlatforms(platforms.filter((item: string) => item !== p));
+    } else {
+      setPlatforms([...platforms, p]);
+    }
+  };
+
+  const addCustomPlatform = () => {
+    if (customPlatform.trim() && !platforms.includes(customPlatform.trim())) {
+      setPlatforms([...platforms, customPlatform.trim()]);
+      setCustomPlatform("");
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl border border-black/5 space-y-8"
+        className="bg-white rounded-[32px] p-8 max-w-2xl w-full shadow-2xl border border-black/5 flex flex-col max-h-[90vh]"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-8">
           <h3 className="text-2xl font-bold text-gray-900">
             {isEditing ? "Editar Cliente" : "Novo Cliente"}
           </h3>
@@ -3493,26 +3833,157 @@ const ClientModal = ({
           </button>
         </div>
 
-        <form onSubmit={onSave} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Nome do Cliente</label>
-            <input 
-              type="text" 
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium"
-              placeholder="Ex: Nome da Empresa ou Projeto"
-              autoFocus
-            />
+        <form onSubmit={onSave} className="space-y-8 overflow-y-auto pr-2 custom-scrollbar">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Logo do Cliente</label>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden group relative">
+                    {logo ? (
+                      <>
+                        <img src={logo} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <button 
+                          type="button"
+                          onClick={() => setLogo(null)}
+                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </>
+                    ) : (
+                      <ImageIcon size={24} className="text-gray-300" />
+                    )}
+                  </div>
+                  <label className="cursor-pointer py-2 px-4 bg-gray-50 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-100 transition-all">
+                    Upload
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Nome do Cliente</label>
+                <input 
+                  type="text" 
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium"
+                  placeholder="Ex: Nome da Empresa"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Nicho de Atuação</label>
+                <input 
+                  type="text" 
+                  value={niche}
+                  onChange={(e) => setNiche(e.target.value)}
+                  className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium"
+                  placeholder="Ex: E-commerce de Moda"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Plataformas de Tráfego</label>
+                <div className="flex flex-wrap gap-2">
+                  {["Google", "Meta"].map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => togglePlatform(p)}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-sm font-bold transition-all",
+                        platforms.includes(p) ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                      )}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                  {platforms.filter(p => !["Google", "Meta"].includes(p)).map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => togglePlatform(p)}
+                      className="px-4 py-2 rounded-xl text-sm font-bold bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <input 
+                    type="text"
+                    value={customPlatform}
+                    onChange={(e) => setCustomPlatform(e.target.value)}
+                    className="flex-1 px-4 py-2 bg-gray-50 rounded-xl border-none text-sm outline-none"
+                    placeholder="Outra plataforma..."
+                  />
+                  <button 
+                    type="button"
+                    onClick={addCustomPlatform}
+                    className="p-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-all"
+                  >
+                    <PlusCircle size={20} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Investimento Mensal</label>
+                <div className="flex gap-2">
+                  <select 
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="px-4 py-4 bg-gray-50 rounded-2xl border-none outline-none font-bold text-gray-600"
+                  >
+                    <option value="BRL">R$ (BRL)</option>
+                    <option value="USD">$ (USD)</option>
+                    <option value="EUR">€ (EUR)</option>
+                    <option value="GBP">£ (GBP)</option>
+                  </select>
+                  <input 
+                    type="number" 
+                    value={investment}
+                    onChange={(e) => setInvestment(e.target.value)}
+                    className="flex-1 px-6 py-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium"
+                    placeholder="0,00"
+                  />
+                </div>
+
+                <div className="bg-gray-50 rounded-3xl p-6 space-y-4 border border-black/5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500 font-medium">Investimento Mensal</span>
+                    <span className="font-bold text-gray-900">
+                      {currency} {investmentValue.toLocaleString()}
+                    </span>
+                  </div>
+                  
+                  <div className="h-px bg-gray-200" />
+
+                  <div className="bg-white rounded-2xl p-4 flex justify-between items-center shadow-sm">
+                    <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Investimento Diário</span>
+                    <span className="font-black text-emerald-500">
+                      {currency} {dailyInvestment.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <button 
-            type="submit"
-            disabled={!clientName.trim()}
-            className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
-          >
-            {isEditing ? "Salvar Alterações" : "Adicionar Cliente"}
-          </button>
+          <div className="pt-4">
+            <button 
+              type="submit"
+              disabled={!clientName.trim()}
+              className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+            >
+              {isEditing ? "Salvar Alterações" : "Adicionar Cliente"}
+            </button>
+          </div>
         </form>
       </motion.div>
     </div>
@@ -3618,6 +4089,7 @@ const ClientHistoryModal = ({ isOpen, onClose, client, history, onViewDetail }: 
                       record.mode === "client_response" ? "bg-orange-100 text-orange-700" :
                       record.mode === "group_update" ? "bg-emerald-100 text-emerald-700" :
                       record.mode === "account_actions" ? "bg-blue-100 text-blue-700" :
+                      record.mode === "sales_analyzer" ? "bg-emerald-100 text-emerald-700" :
                       "bg-indigo-100 text-indigo-700"
                     )}>
                       {record.mode === "client_response" ? "Resposta" :
@@ -3732,7 +4204,7 @@ const SummaryOptionsModal = ({
     { id: "group_update", label: "Enviar mensagem", icon: Sparkles, color: "purple" },
     { id: "meeting_summary", label: "Análise estratégica de reunião", icon: Calendar, color: "blue" },
     { id: "sales_analyzer", label: "Analisador de WhatsApp", icon: MessageCircle, color: "orange" },
-    { id: "ad_copy_generator", label: "Gerador de Copy para anúncios", icon: Sparkles, color: "pink" }
+    { id: "ad_copy_generator", label: "Gerador de Copy para anúncios", icon: Megaphone, color: "pink" }
   ];
 
   const toggleMode = (id: string) => {
