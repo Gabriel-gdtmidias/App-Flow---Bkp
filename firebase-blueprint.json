@@ -26,6 +26,16 @@
           "type": "number",
           "description": "Monthly investment value."
         },
+        "platformInvestments": {
+          "type": "object",
+          "additionalProperties": { "type": "number" },
+          "description": "Investment breakdown per platform."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "inactive"],
+          "description": "The status of the client."
+        },
         "currency": {
           "type": "string",
           "description": "Currency of the investment (BRL, USD, EUR, GBP, etc.)."

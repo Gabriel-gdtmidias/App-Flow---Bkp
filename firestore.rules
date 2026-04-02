@@ -9,6 +9,13 @@ service cloud.firestore {
     // Document ID: auto-generated
     // Fields:
     //   - name: string (required, 1-100 chars)
+    //   - niche: string (optional)
+    //   - logo: string (optional)
+    //   - platforms: list (optional)
+    //   - investmentValue: number (optional)
+    //   - platformInvestments: map (optional)
+    //   - status: string (optional, enum: active, inactive)
+    //   - currency: string (optional)
     //   - createdAt: timestamp (required)
     //   - uid: string (required, matches owner)
     //
@@ -65,6 +72,8 @@ service cloud.firestore {
              (!('logo' in data) || data.logo == null || (data.logo is string && data.logo.size() <= 1000000)) &&
              (!('platforms' in data) || data.platforms == null || (data.platforms is list)) &&
              (!('investmentValue' in data) || data.investmentValue == null || (data.investmentValue is number)) &&
+             (!('platformInvestments' in data) || data.platformInvestments == null || (data.platformInvestments is map)) &&
+             (!('status' in data) || data.status == null || (data.status in ['active', 'inactive'])) &&
              (!('currency' in data) || data.currency == null || (data.currency is string && data.currency.size() <= 10)) &&
              data.createdAt is timestamp &&
              data.uid is string;

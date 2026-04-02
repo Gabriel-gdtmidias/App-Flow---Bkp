@@ -187,6 +187,8 @@ interface Client {
   logo?: string;
   platforms?: string[];
   investmentValue?: number;
+  platformInvestments?: Record<string, number>;
+  status?: 'active' | 'inactive';
   currency?: string;
   createdAt: any;
   uid: string;
@@ -226,11 +228,15 @@ export default function App() {
   const [newClientLogo, setNewClientLogo] = useState<string | null>(null);
   const [newClientPlatforms, setNewClientPlatforms] = useState<string[]>(["Google", "Meta"]);
   const [newClientInvestment, setNewClientInvestment] = useState<string>("");
+  const [newClientPlatformInvestments, setNewClientPlatformInvestments] = useState<Record<string, string>>({});
+  const [newClientStatus, setNewClientStatus] = useState<'active' | 'inactive'>('active');
   const [newClientCurrency, setNewClientCurrency] = useState("BRL");
   const [customPlatform, setCustomPlatform] = useState("");
   const [isEditingClient, setIsEditingClient] = useState(false);
   const [editingClientId, setEditingClientId] = useState("");
   const [editingClientName, setEditingClientName] = useState("");
+  const [editingClientPlatformInvestments, setEditingClientPlatformInvestments] = useState<Record<string, string>>({});
+  const [editingClientStatus, setEditingClientStatus] = useState<'active' | 'inactive'>('active');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [dashboardDateFilter, setDashboardDateFilter] = useState<DateFilterType>("current_month");
@@ -738,6 +744,10 @@ export default function App() {
         logo: newClientLogo,
         platforms: newClientPlatforms,
         investmentValue: parseFloat(newClientInvestment) || 0,
+        platformInvestments: Object.fromEntries(
+          Object.entries(newClientPlatformInvestments).map(([k, v]) => [k, parseFloat(v) || 0])
+        ),
+        status: newClientStatus,
         currency: newClientCurrency,
         createdAt: serverTimestamp(),
         uid: user.uid
@@ -747,6 +757,8 @@ export default function App() {
       setNewClientLogo(null);
       setNewClientPlatforms(["Google", "Meta"]);
       setNewClientInvestment("");
+      setNewClientPlatformInvestments({});
+      setNewClientStatus('active');
       setNewClientCurrency("BRL");
       setIsClientModalOpen(false);
     } catch (err) {
@@ -766,6 +778,10 @@ export default function App() {
         logo: newClientLogo,
         platforms: newClientPlatforms,
         investmentValue: parseFloat(newClientInvestment) || 0,
+        platformInvestments: Object.fromEntries(
+          Object.entries(isEditingClient ? editingClientPlatformInvestments : newClientPlatformInvestments).map(([k, v]) => [k, parseFloat(v) || 0])
+        ),
+        status: isEditingClient ? editingClientStatus : newClientStatus,
         currency: newClientCurrency
       });
       setIsEditingClient(false);
@@ -776,6 +792,10 @@ export default function App() {
       setNewClientLogo(null);
       setNewClientPlatforms(["Google", "Meta"]);
       setNewClientInvestment("");
+      setNewClientPlatformInvestments({});
+      setEditingClientPlatformInvestments({});
+      setNewClientStatus('active');
+      setEditingClientStatus('active');
       setNewClientCurrency("BRL");
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
@@ -1941,6 +1961,13 @@ export default function App() {
                             setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
                             setNewClientInvestment(client.investmentValue?.toString() || "");
                             setNewClientCurrency(client.currency || "BRL");
+                            setNewClientStatus(client.status || 'active');
+                            setEditingClientStatus(client.status || 'active');
+                            setEditingClientPlatformInvestments(
+                              Object.fromEntries(
+                                Object.entries(client.platformInvestments || {}).map(([k, v]) => [k, v.toString()])
+                              )
+                            );
                             setIsEditingClient(true);
                             setIsClientModalOpen(true);
                           }
@@ -2409,6 +2436,13 @@ export default function App() {
                                 setNewClientPlatforms(client.platforms || ["Google", "Meta"]);
                                 setNewClientInvestment(client.investmentValue?.toString() || "");
                                 setNewClientCurrency(client.currency || "BRL");
+                                setNewClientStatus(client.status || 'active');
+                                setEditingClientStatus(client.status || 'active');
+                                setEditingClientPlatformInvestments(
+                                  Object.fromEntries(
+                                    Object.entries(client.platformInvestments || {}).map(([k, v]) => [k, v.toString()])
+                                  )
+                                );
                                 setIsEditingClient(true);
                                 setIsClientModalOpen(true);
                               }
@@ -3460,11 +3494,17 @@ export default function App() {
 
                           <div className="space-y-4 flex-1">
                             <div className="flex flex-wrap gap-2">
-                              {client.platforms?.map((p: string) => (
-                                <span key={`${client.id}-plat-${p}`} className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-black/5">
-                                  {p}
-                                </span>
-                              ))}
+                              {client.platforms?.map((p: string) => {
+                                const platformDaily = (client.platformInvestments?.[p] || 0) / 30;
+                                return (
+                                  <div key={`${client.id}-plat-${p}`} className="flex flex-col gap-1 px-3 py-2 bg-gray-50 rounded-xl border border-black/5 min-w-[100px]">
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{p}</span>
+                                    <span className="text-xs font-bold text-gray-900">
+                                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: client.currency || 'BRL' }).format(platformDaily)}/dia
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
 
                             <div className="p-4 bg-gray-50 rounded-2xl border border-black/5 space-y-2">
@@ -3482,8 +3522,10 @@ export default function App() {
 
                           <div className="mt-6 pt-4 border-t border-black/5 flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ativo</span>
+                              <div className={cn("w-2 h-2 rounded-full", client.status === 'inactive' ? "bg-red-500" : "bg-emerald-500 animate-pulse")}></div>
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                {client.status === 'inactive' ? "Inativo" : "Ativo"}
+                              </span>
                             </div>
                             <button 
                               onClick={() => {
@@ -3557,6 +3599,8 @@ export default function App() {
                 setNewClientLogo(null);
                 setNewClientPlatforms(["Google", "Meta"]);
                 setNewClientInvestment("");
+                setNewClientPlatformInvestments({});
+                setEditingClientPlatformInvestments({});
                 setNewClientCurrency("BRL");
                 setEditingClientId("");
                 setEditingClientName("");
@@ -3572,6 +3616,10 @@ export default function App() {
               setPlatforms={setNewClientPlatforms}
               investment={newClientInvestment}
               setInvestment={setNewClientInvestment}
+              platformInvestments={isEditingClient ? editingClientPlatformInvestments : newClientPlatformInvestments}
+              setPlatformInvestments={isEditingClient ? setEditingClientPlatformInvestments : setNewClientPlatformInvestments}
+              status={isEditingClient ? editingClientStatus : newClientStatus}
+              setStatus={isEditingClient ? setEditingClientStatus : setNewClientStatus}
               currency={newClientCurrency}
               setCurrency={setNewClientCurrency}
               onSave={isEditingClient ? handleEditClient : handleAddClient}
@@ -3780,6 +3828,10 @@ const ClientModal = ({
   setPlatforms,
   investment,
   setInvestment,
+  platformInvestments,
+  setPlatformInvestments,
+  status,
+  setStatus,
   currency,
   setCurrency,
   onSave 
@@ -3788,8 +3840,8 @@ const ClientModal = ({
 
   const [customPlatform, setCustomPlatform] = useState("");
 
-  const investmentValue = parseFloat(investment) || 0;
-  const dailyInvestment = investmentValue / 30;
+  const investmentValue = Object.values(platformInvestments || {}).reduce((acc: number, curr: any) => acc + (parseFloat(curr) || 0), 0) as number;
+  const dailyInvestment = (investmentValue / 30) as number;
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -3805,6 +3857,11 @@ const ClientModal = ({
   const togglePlatform = (p: string) => {
     if (platforms.includes(p)) {
       setPlatforms(platforms.filter((item: string) => item !== p));
+      const newInvestments = { ...platformInvestments };
+      delete newInvestments[p];
+      setPlatformInvestments(newInvestments);
+      const total = Object.values(newInvestments).reduce((acc: number, curr: any) => acc + (parseFloat(curr) || 0), 0);
+      setInvestment(total.toString());
     } else {
       setPlatforms([...platforms, p]);
     }
@@ -3886,6 +3943,34 @@ const ClientModal = ({
               </div>
 
               <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Status do Cliente</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStatus('active')}
+                    className={cn(
+                      "flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
+                      status === 'active' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                    )}
+                  >
+                    <div className={cn("w-2 h-2 rounded-full", status === 'active' ? "bg-white" : "bg-emerald-500")}></div>
+                    Ativo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatus('inactive')}
+                    className={cn(
+                      "flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
+                      status === 'inactive' ? "bg-red-500 text-white shadow-lg shadow-red-500/20" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                    )}
+                  >
+                    <div className={cn("w-2 h-2 rounded-full", status === 'inactive' ? "bg-white" : "bg-red-500")}></div>
+                    Inativo
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Plataformas de Tráfego</label>
                 <div className="flex flex-wrap gap-2">
                   {["Google", "Meta"].map(p => (
@@ -3934,40 +4019,65 @@ const ClientModal = ({
             <div className="space-y-6">
               <div className="space-y-4">
                 <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Investimento Mensal</label>
-                <div className="flex gap-2">
+                
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Moeda</label>
                   <select 
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}
-                    className="px-4 py-4 bg-gray-50 rounded-2xl border-none outline-none font-bold text-gray-600"
+                    className="w-full px-4 py-3 bg-gray-50 rounded-2xl border-none outline-none font-bold text-gray-600"
                   >
                     <option value="BRL">R$ (BRL)</option>
                     <option value="USD">$ (USD)</option>
                     <option value="EUR">€ (EUR)</option>
                     <option value="GBP">£ (GBP)</option>
                   </select>
-                  <input 
-                    type="number" 
-                    value={investment}
-                    onChange={(e) => setInvestment(e.target.value)}
-                    className="flex-1 px-6 py-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium"
-                    placeholder="0,00"
-                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Distribuição por Plataforma</label>
+                  {platforms.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">Selecione ao menos uma plataforma para definir o investimento.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                      {platforms.map((p: string) => (
+                        <div key={p} className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-black/5">
+                          <span className="text-xs font-bold text-gray-600 min-w-[80px] truncate">{p}</span>
+                          <div className="flex-1 flex gap-2">
+                            <span className="text-gray-400 font-bold self-center text-xs">{currency}</span>
+                            <input 
+                              type="number" 
+                              value={platformInvestments[p] || ""}
+                              onChange={(e) => {
+                                const newInvestments = { ...platformInvestments, [p]: e.target.value };
+                                setPlatformInvestments(newInvestments);
+                                const total = Object.values(newInvestments).reduce((acc: number, curr: any) => acc + (parseFloat(curr) || 0), 0);
+                                setInvestment(total.toString());
+                              }}
+                              className="w-full bg-white px-4 py-2 rounded-xl border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all font-medium text-sm"
+                              placeholder="0,00"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-gray-50 rounded-3xl p-6 space-y-4 border border-black/5">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500 font-medium">Investimento Mensal</span>
+                    <span className="text-sm text-gray-500 font-medium">Total Mensal</span>
                     <span className="font-bold text-gray-900">
-                      {currency} {investmentValue.toLocaleString()}
+                      {currency} {(investmentValue as number).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                   
                   <div className="h-px bg-gray-200" />
 
                   <div className="bg-white rounded-2xl p-4 flex justify-between items-center shadow-sm">
-                    <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Investimento Diário</span>
+                    <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Total Diário</span>
                     <span className="font-black text-emerald-500">
-                      {currency} {dailyInvestment.toLocaleString()}
+                      {currency} {(dailyInvestment as number).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -4345,7 +4455,8 @@ const ClientSelector = ({
   const selectedClient = clients.find(c => c.id === selectedClientId);
   
   const filteredClients = clients.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase())
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+    (c.status === 'active' || !c.status)
   );
 
   useEffect(() => {
