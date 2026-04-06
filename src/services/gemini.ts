@@ -2,12 +2,14 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
-export type SummaryMode = "communication" | "account_actions" | "group_update" | "client_response" | "meeting_summary" | "sales_analyzer" | "ad_copy_generator";
+export type SummaryMode = "communication" | "account_actions" | "group_update" | "client_response" | "meeting_summary" | "sales_analyzer" | "ad_copy_generator" | "tasks";
 
 export async function generateAdCopy(
   platform: "Google Ads" | "Meta Ads",
   language: string,
   productInfo: string,
+  copyStructure: "PAS" | "BAB" | "FAB" | "4Us",
+  useEmojis: boolean,
   imagesData?: { data: string; mimeType: string }[]
 ) {
   const model = "gemini-3-flash-preview";
@@ -21,7 +23,8 @@ export async function generateAdCopy(
     - Linguagem simples, persuasiva e humana
     - Foco em conversão (clique ou ação)
     - Adaptar ao idioma selecionado: ${language}
-    - Usar apenas 1 ou 2 estruturas de copy por geração (PAS, BAB, FAB, 4U's, PPPP)
+    - Estrutura OBRIGATÓRIA a ser seguida: ${copyStructure}
+    - Estilo de escrita: ${useEmojis ? "Usar emojis com moderação (máx. 3 por copy)" : "NÃO usar emojis em hipótese alguma"}
     - NÃO cite nomes de autores ou referências na resposta.
     - Retorne APENAS a copy estruturada conforme o formato de saída.
 
@@ -54,11 +57,11 @@ export async function generateAdCopy(
     3.
 
     Se Meta Ads:
-    *Título:* [Texto do título aqui] ✨
+    Título: [Texto do título aqui]
 
-    *Copy:* [Texto da copy principal aqui, use parágrafos se necessário para legibilidade. Deixe uma linha em branco entre o título e a copy, e entre a copy e a descrição.]
+    Copy: [Texto da copy principal aqui, use parágrafos se necessário para legibilidade. Deixe uma linha em branco entre o título e a copy, e entre a copy e a descrição.]
 
-    *Descrição:* [Texto da descrição complementar aqui]
+    Descrição: [Texto da descrição complementar aqui]
   `;
 
   const parts: any[] = [{ text: `Plataforma: ${platform}\nIdioma: ${language}\nProduto/Serviço: ${productInfo}` }];
@@ -338,7 +341,8 @@ export async function summarizeChat(
     client_response: clientResponseInstruction,
     meeting_summary: meetingSummaryInstruction,
     sales_analyzer: salesAnalyzerInstruction,
-    ad_copy_generator: "Você é um gerador de copy de anúncios."
+    ad_copy_generator: "Você é um gerador de copy de anúncios.",
+    tasks: "Você é um assistente de gestão de tarefas. Ajude a organizar e priorizar as tarefas do cliente."
   };
 
   const systemInstruction = modeInstructions[mode];
@@ -569,5 +573,66 @@ export async function generateGroupMessageFromHistory(
   } catch (error) {
     console.error("Error generating group message:", error);
     throw new Error("Falha ao gerar a mensagem para o grupo.");
+  }
+}
+
+export async function generateTaskInsights(
+  clientName: string,
+  tasks: any[],
+  executionScore: number
+) {
+  const model = "gemini-3-flash-preview";
+  const systemInstruction = `
+    Você é um Especialista em Gestão Estratégica e Operacional.
+    Sua tarefa é analisar o quadro de tarefas de um cliente e gerar "Insights Estratégicos do Cliente 💡".
+
+    DADOS PARA ANÁLISE:
+    - Nome do Cliente: ${clientName}
+    - Score de Execução Atual: ${executionScore}%
+    - Lista de Tarefas (incluindo status, prioridade, prazos e datas de criação).
+
+    OBJETIVO:
+    Gerar uma análise crítica sobre a saúde operacional do cliente, identificando gargalos, riscos e oportunidades de melhoria.
+
+    DIRETRIZES DE ANÁLISE:
+    1. Analise a quantidade de tarefas vencidas e o impacto disso.
+    2. Avalie o volume de tarefas criadas vs concluídas.
+    3. Identifique padrões de atraso ou negligência em tarefas de alta prioridade.
+    4. Avalie se a equipe está focada no que é crítico ou apenas no que é urgente.
+
+    ESTRUTURA DA RESPOSTA (Markdown):
+    - **Insights Estratégicos do Cliente 💡**: 3 a 4 pontos diretos e impactantes.
+    - **Recomendações Automáticas 🛠️**: 3 sugestões práticas para melhorar a execução.
+
+    REGRAS DE TOM:
+    - Consultivo, direto, profissional e focado em resultados.
+    - Use emojis para destacar pontos (⚠️, 🔴, ✅, ⏳).
+    - Seja honesto sobre o desempenho (se estiver ruim, aponte o risco; se estiver bom, valide a consistência).
+
+    EXEMPLOS DE INSIGHTS:
+    - "⚠️ Este cliente está acumulando tarefas vencidas, indicando risco operacional."
+    - "🔴 Tarefas críticas não estão sendo executadas no prazo."
+    - "✅ Execução consistente, tarefas sendo concluídas dentro do prazo."
+    - "⏳ Existe um padrão de atraso na execução das atividades."
+  `;
+
+  const tasksText = tasks.map(t => 
+    `- Tarefa: ${t.title} | Status: ${t.status} | Prioridade: ${t.priority} | Prazo: ${t.deadline} | Criada em: ${t.createdAt}`
+  ).join("\n");
+
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: [{ parts: [{ text: `Analise as seguintes tarefas para o cliente ${clientName}:\n\n${tasksText}` }] }],
+      config: {
+        systemInstruction,
+        temperature: 0.3,
+      },
+    });
+
+    return response.text;
+  } catch (error) {
+    console.error("Error generating task insights:", error);
+    throw new Error("Falha ao gerar os insights das tarefas.");
   }
 }

@@ -83,7 +83,7 @@ service cloud.firestore {
 
     function isValidHistory(data) {
       return data.clientId is string &&
-             data.mode in ['communication', 'account_actions', 'group_update', 'client_response', 'meeting_summary', 'sales_analyzer', 'ad_copy_generator'] &&
+             data.mode in ['communication', 'account_actions', 'group_update', 'client_response', 'meeting_summary', 'sales_analyzer', 'ad_copy_generator', 'tasks'] &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
              data.createdAt is timestamp &&
              data.uid is string;
