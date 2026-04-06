@@ -96,6 +96,23 @@ service cloud.firestore {
              data.uid is string;
     }
 
+    function isValidTask(data) {
+      return data.clientId is string &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 2000)) &&
+             data.deadline is timestamp &&
+             data.priority in ['low', 'medium', 'high'] &&
+             data.status in ['pending', 'completed', 'overdue'] &&
+             (!('recurrence' in data) || data.recurrence == null || (
+               data.recurrence is map &&
+               data.recurrence.type in ['none', 'daily', 'weekly', 'monthly'] &&
+               (!('days' in data.recurrence) || data.recurrence.days is list)
+             )) &&
+             data.createdAt is timestamp &&
+             (!('completedAt' in data) || data.completedAt == null || data.completedAt is timestamp) &&
+             data.uid is string;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -123,6 +140,13 @@ service cloud.firestore {
       allow read: if isDocOwner() || isAdmin();
       allow create: if isAuthenticated() && isValidSalesAnalysis(request.resource.data) && request.resource.data.uid == request.auth.uid;
       allow update: if (isDocOwner() || isAdmin()) && isValidSalesAnalysis(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidTask(request.resource.data) && request.resource.data.uid == request.auth.uid;
+      allow update: if (isDocOwner() || isAdmin()) && isValidTask(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner() || isAdmin();
     }
   }

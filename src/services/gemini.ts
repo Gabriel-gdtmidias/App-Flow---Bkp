@@ -129,20 +129,21 @@ export async function summarizeChat(
     
     Formate a saída em Markdown elegante. Use negrito para nomes e datas importantes.
     Deixe DUAS linhas de espaço entre cada seção para facilitar a leitura.
+    O título do relatório deve ser: **COMUNICAÇÕES DO GRUPO**
   `;
 
   const accountActionsInstruction = `
     Você é um especialista em tráfego pago (Meta Ads e Google Ads) e gestor de contas sênior.
     ${audioInstruction}
     ${fileInstruction}
-    Sua tarefa é analisar o log da conversa, o áudio e/ou os arquivos fornecidos para gerar um relatório de "Ações Executadas na Conta".
+    Sua tarefa é analisar o log da conversa, o áudio e/ou os arquivos fornecidos para gerar um relatório de "Otimizações Executadas na Conta".
     
     ESTRATÉGIA:
     - Foque EXCLUSIVAMENTE nas ações práticas e operacionais que foram realizadas ou citadas.
     - Ignore análises de métricas de performance ou resultados (ROAS, CPC, etc), a menos que sejam citados como parte de uma ação executada.
     
     FOCO DA ANÁLISE:
-    - **Ações Executadas**: Ações práticas, técnicas e operacionais realizadas na conta.
+    - **Otimizações Executadas**: Ações práticas, técnicas e operacionais realizadas na conta.
     
     REGRAS DE FORMATAÇÃO (MONDAY.COM):
     - Use **negrito** para títulos de seção e termos importantes.
@@ -152,7 +153,7 @@ export async function summarizeChat(
     - Evite termos técnicos excessivos. Por exemplo: em vez de "atualização de inventário", use "troca de criativos (anúncios)" ou "atualização das imagens/vídeos".
     
     ESTRUTURA:
-    **AÇÕES EXECUTADAS**
+    **OTIMIZAÇÕES EXECUTADAS**
     - [Ação 1]
     - [Ação 2]
     `;

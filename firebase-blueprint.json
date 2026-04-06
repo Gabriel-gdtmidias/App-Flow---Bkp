@@ -110,6 +110,69 @@
         }
       },
       "required": ["clientId", "niche", "createdAt", "uid"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A task for a client.",
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "description": "The ID of the client this task belongs to."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the task."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the task."
+        },
+        "deadline": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The deadline of the task."
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "The priority of the task."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "completed", "overdue"],
+          "description": "The status of the task."
+        },
+        "recurrence": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["none", "daily", "weekly", "monthly"]
+            },
+            "days": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "description": "Recurrence settings for the task."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the task was created."
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the task was completed."
+        },
+        "uid": {
+          "type": "string",
+          "description": "The user ID who owns this task."
+        }
+      },
+      "required": ["clientId", "title", "deadline", "priority", "status", "createdAt", "uid"]
     }
   },
   "firestore": {
@@ -124,6 +187,10 @@
     "/sales_analyses/{analysisId}": {
       "schema": "SalesAnalysis",
       "description": "Collection of sales analysis records for metrics."
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Collection of tasks for clients."
     }
   }
 }

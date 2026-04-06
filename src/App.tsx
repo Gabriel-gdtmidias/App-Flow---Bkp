@@ -49,7 +49,12 @@ import {
   Megaphone,
   DollarSign,
   TrendingUp,
-  Edit3
+  Edit3,
+  LayoutDashboard,
+  AlertCircle,
+  Clock,
+  RefreshCw,
+  TrendingDown
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { jsPDF } from "jspdf";
@@ -225,6 +230,23 @@ interface HistoryRecord {
   uid: string;
 }
 
+interface Task {
+  id: string;
+  clientId: string;
+  title: string;
+  description?: string;
+  deadline: any;
+  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'completed' | 'overdue';
+  recurrence?: {
+    type: 'none' | 'daily' | 'weekly' | 'monthly';
+    days?: string[];
+  };
+  createdAt: any;
+  completedAt?: any;
+  uid: string;
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -286,6 +308,24 @@ export default function App() {
   const [selectedSummaryModes, setSelectedSummaryModes] = useState<SummaryMode[]>(["communication", "account_actions", "group_update", "meeting_summary"]);
   const [isSummaryOptionsModalOpen, setIsSummaryOptionsModalOpen] = useState(false);
   const [summaryOption, setSummaryOption] = useState<"all" | "selected">("all");
+  
+  // Task Management State
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [isEditingTask, setIsEditingTask] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState("");
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskDeadline, setTaskDeadline] = useState("");
+  const [taskPriority, setTaskPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [taskRecurrenceType, setTaskRecurrenceType] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
+  const [taskRecurrenceDays, setTaskRecurrenceDays] = useState<string[]>([]);
+  const [isTaskDashboardOpen, setIsTaskDashboardOpen] = useState(false);
+  const [taskAlertClient, setTaskAlertClient] = useState<Client | null>(null);
+  const [isTaskAlertOpen, setIsTaskAlertOpen] = useState(false);
+  const [isTaskConfirmOpen, setIsTaskConfirmOpen] = useState(false);
+  const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
+  const [showTaskSuccess, setShowTaskSuccess] = useState(false);
   
   // Ad Copy Generator State
   const [adPlatform, setAdPlatform] = useState<"Google Ads" | "Meta Ads">("Google Ads");
@@ -452,6 +492,167 @@ export default function App() {
     setGeneratedAdCopy(null);
     setAdProductInfo("");
   }, [selectedClientId]);
+
+  // Reset Task Form
+  const resetTaskForm = () => {
+    setTaskTitle("");
+    setTaskDescription("");
+    setTaskDeadline("");
+    setTaskPriority("medium");
+    setTaskRecurrenceType("none");
+    setTaskRecurrenceDays([]);
+    setIsEditingTask(false);
+    setEditingTaskId("");
+  };
+
+  const getNextOccurrence = (task: Task) => {
+    if (!task.recurrence || task.recurrence.type === 'none') return null;
+    
+    const currentDeadline = task.deadline?.toDate ? task.deadline.toDate() : new Date(task.deadline);
+    let nextDeadline = new Date(currentDeadline);
+    
+    if (task.recurrence.type === 'daily') {
+      nextDeadline.setDate(nextDeadline.getDate() + 1);
+    } else if (task.recurrence.type === 'weekly' && task.recurrence.days) {
+      const daysMap: Record<string, number> = {
+        'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5, 'Sábado': 6, 'Domingo': 0
+      };
+      const selectedDays = task.recurrence.days.map(d => daysMap[d]);
+      let found = false;
+      for (let i = 1; i <= 7; i++) {
+        const nextDay = new Date(currentDeadline);
+        nextDay.setDate(nextDay.getDate() + i);
+        if (selectedDays.includes(nextDay.getDay())) {
+          nextDeadline = nextDay;
+          found = true;
+          break;
+        }
+      }
+      if (!found) nextDeadline.setDate(nextDeadline.getDate() + 7);
+    } else if (task.recurrence.type === 'monthly') {
+      nextDeadline.setMonth(nextDeadline.getMonth() + 1);
+    }
+    
+    return nextDeadline;
+  };
+
+  const calculateExecutionScore = (clientId: string) => {
+    const clientTasks = tasks.filter(t => t.clientId === clientId);
+    if (clientTasks.length === 0) return 100;
+    
+    const completed = clientTasks.filter(t => t.status === 'completed').length;
+    const total = clientTasks.length;
+    
+    return Math.round((completed / total) * 100);
+  };
+
+  const handleSaveTask = async (clientId: string) => {
+    if (!taskTitle || !taskDeadline) return;
+
+    const taskData = {
+      clientId,
+      title: taskTitle,
+      description: taskDescription,
+      deadline: new Date(taskDeadline),
+      priority: taskPriority,
+      status: 'pending' as const,
+      recurrence: {
+        type: taskRecurrenceType,
+        days: taskRecurrenceDays
+      },
+      createdAt: serverTimestamp(),
+      uid: user?.uid
+    };
+
+    try {
+      if (isEditingTask) {
+        await updateDoc(doc(db, "tasks", editingTaskId), taskData);
+        await addDoc(collection(db, "histories"), {
+          clientId,
+          mode: 'account_actions',
+          content: `**TAREFA EDITADA:** ${taskTitle}\nPrioridade: ${taskPriority}\nPrazo: ${new Date(taskDeadline).toLocaleString('pt-BR')}`,
+          createdAt: serverTimestamp(),
+          uid: user?.uid
+        });
+      } else {
+        await addDoc(collection(db, "tasks"), taskData);
+        await addDoc(collection(db, "histories"), {
+          clientId,
+          mode: 'account_actions',
+          content: `**TAREFA CRIADA:** ${taskTitle}\nPrioridade: ${taskPriority}\nPrazo: ${new Date(taskDeadline).toLocaleString('pt-BR')}`,
+          createdAt: serverTimestamp(),
+          uid: user?.uid
+        });
+      }
+      setIsTaskModalOpen(false);
+      resetTaskForm();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, "tasks");
+    }
+  };
+
+  const handleCompleteTask = async (task: Task) => {
+    try {
+      await updateDoc(doc(db, "tasks", task.id), {
+        status: 'completed',
+        completedAt: serverTimestamp()
+      });
+
+      await addDoc(collection(db, "histories"), {
+        clientId: task.clientId,
+        mode: 'account_actions',
+        content: `**TAREFA CONCLUÍDA:** ${task.title}\nData: ${new Date().toLocaleString('pt-BR')}`,
+        createdAt: serverTimestamp(),
+        uid: user?.uid
+      });
+
+      if (task.recurrence && task.recurrence.type !== 'none') {
+        const nextDeadline = getNextOccurrence(task);
+        if (nextDeadline) {
+          await addDoc(collection(db, "tasks"), {
+            clientId: task.clientId,
+            title: task.title,
+            description: task.description || "",
+            deadline: nextDeadline,
+            priority: task.priority,
+            status: 'pending',
+            recurrence: task.recurrence,
+            createdAt: serverTimestamp(),
+            uid: user?.uid
+          });
+          await addDoc(collection(db, "histories"), {
+            clientId: task.clientId,
+            mode: 'account_actions',
+            content: `**RECORRÊNCIA GERADA:** ${task.title}\nNovo Prazo: ${nextDeadline.toLocaleString('pt-BR')}`,
+            createdAt: serverTimestamp(),
+            uid: user?.uid
+          });
+        }
+      }
+
+      setShowTaskSuccess(true);
+      setTimeout(() => setShowTaskSuccess(false), 3000);
+      setIsTaskConfirmOpen(false);
+      setTaskToComplete(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, "tasks");
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string, clientId: string, title: string) => {
+    try {
+      await deleteDoc(doc(db, "tasks", taskId));
+      await addDoc(collection(db, "histories"), {
+        clientId,
+        mode: 'account_actions',
+        content: `**TAREFA EXCLUÍDA:** ${title}`,
+        createdAt: serverTimestamp(),
+        uid: user?.uid
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, "tasks");
+    }
+  };
   
   const resultRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -583,6 +784,64 @@ export default function App() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Fetch Tasks
+  useEffect(() => {
+    if (!user) {
+      setTasks([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, "tasks"),
+      where("uid", "==", user.uid),
+      orderBy("deadline", "asc")
+    );
+
+    const path = "tasks";
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const taskData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Task[];
+      setTasks(taskData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Overdue Detection & Real-time Update
+  useEffect(() => {
+    if (!user || tasks.length === 0) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      tasks.forEach(async (task) => {
+        if (task.status === 'pending') {
+          const deadline = task.deadline?.toDate ? task.deadline.toDate() : new Date(task.deadline);
+          if (now > deadline) {
+            try {
+              await updateDoc(doc(db, "tasks", task.id), { status: 'overdue' });
+              // Log to history
+              await addDoc(collection(db, "histories"), {
+                clientId: task.clientId,
+                mode: 'account_actions',
+                content: `**TAREFA VENCIDA:** ${task.title}\nPrazo: ${deadline.toLocaleString('pt-BR')}`,
+                createdAt: serverTimestamp(),
+                uid: user?.uid
+              });
+            } catch (e) {
+              console.error("Error updating overdue task:", e);
+            }
+          }
+        }
+      });
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [tasks, user]);
 
   // Filtered Histories for Dashboard
   const filteredDashboardHistories = allHistories.filter(history => {
@@ -1178,8 +1437,8 @@ export default function App() {
     const title = modeToClear ? "Limpar Categoria" : "Limpar Histórico";
     const message = modeToClear 
       ? `Tem certeza que deseja apagar todo o histórico de ${
-          modeToClear === "communication" ? "Comunicados no Grupo" : 
-          modeToClear === "account_actions" ? "Ações da Conta" : 
+          modeToClear === "communication" ? "Comunicações do Grupo" : 
+          modeToClear === "account_actions" ? "Otimizações da Conta" : 
           modeToClear === "group_update" ? "Visão Executiva do Grupo" : 
           modeToClear === "client_response" ? "Respostas" : 
           "Análise Estratégica de Reunião"
@@ -1745,8 +2004,8 @@ export default function App() {
       });
 
     const categoryLabels: Record<SummaryMode, string> = {
-      communication: "Comunicados no Grupo",
-      account_actions: "Ações da Conta",
+      communication: "Comunicações do Grupo",
+      account_actions: "Otimizações da Conta",
       group_update: "Atualização do Grupo",
       client_response: "Resposta à Conta",
       meeting_summary: "Análise Estratégica de Reunião",
@@ -1961,10 +2220,10 @@ export default function App() {
                 <button 
                   onClick={() => setIsClientsTabOpen(true)}
                   className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-600 rounded-xl border border-purple-100 hover:bg-purple-100 transition-all shadow-sm group"
-                  title="Gestão de Contas"
+                  title="Gerenciador de Contas"
                 >
                   <Users size={18} className="group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold hidden md:block">Contas</span>
+                  <span className="text-xs font-bold hidden md:block">Gerenciador de Contas</span>
                 </button>
 
                 <button 
@@ -2183,7 +2442,7 @@ export default function App() {
                     <span className="text-[10px] font-black text-purple-600 bg-purple-50 px-2 py-1 rounded-lg uppercase tracking-widest">Carteira</span>
                   </div>
                   <div>
-                    <h4 className="text-2xl font-black text-gray-900">{clients.length} Contas</h4>
+                    <h4 className="text-2xl font-black text-gray-900">{clients.length} Contas Gerenciadas</h4>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Ativos no sistema</p>
                   </div>
                 </div>
@@ -2332,8 +2591,8 @@ export default function App() {
                       <PieChart>
                         <Pie
                           data={[
-                            { name: 'Comunicados no Grupo', value: filteredDashboardHistories.filter(h => h.mode === 'communication').length, color: '#10b981' },
-                            { name: 'Ações da Conta', value: filteredDashboardHistories.filter(h => h.mode === 'account_actions').length, color: '#3b82f6' },
+                            { name: 'Comunicações do Grupo', value: filteredDashboardHistories.filter(h => h.mode === 'communication').length, color: '#10b981' },
+                            { name: 'Otimizações da Conta', value: filteredDashboardHistories.filter(h => h.mode === 'account_actions').length, color: '#3b82f6' },
                             { name: 'Atualização do Grupo', value: filteredDashboardHistories.filter(h => h.mode === 'group_update').length, color: '#8b5cf6' },
                             { name: 'Resposta à Conta', value: filteredDashboardHistories.filter(h => h.mode === 'client_response').length, color: '#f59e0b' },
                             { name: 'Análise Estratégica de Reunião', value: filteredDashboardHistories.filter(h => h.mode === 'meeting_summary').length, color: '#6366f1' },
@@ -2399,8 +2658,8 @@ export default function App() {
                       const isExpanded = expandedMetricsClientId === client.id;
                       
                       const stats = [
-                        { label: "Comunicados", value: client.history.filter(h => h.mode === 'communication').length, color: "text-blue-600", bg: "bg-blue-50", icon: LayoutList },
-                        { label: "Ações", value: client.history.filter(h => h.mode === 'account_actions').length, color: "text-purple-600", bg: "bg-purple-50", icon: Briefcase },
+                        { label: "Comunicações", value: client.history.filter(h => h.mode === 'communication').length, color: "text-blue-600", bg: "bg-blue-50", icon: LayoutList },
+                        { label: "Otimizações", value: client.history.filter(h => h.mode === 'account_actions').length, color: "text-purple-600", bg: "bg-purple-50", icon: Briefcase },
                         { label: "Visão Executiva", value: client.history.filter(h => h.mode === 'group_update' || h.mode === 'client_response').length, color: "text-emerald-600", bg: "bg-emerald-50", icon: Users },
                         { label: "Reuniões", value: client.history.filter(h => h.mode === 'meeting_summary').length, color: "text-indigo-600", bg: "bg-indigo-50", icon: Calendar },
                       ];
@@ -2575,6 +2834,185 @@ export default function App() {
                     {isHistoryOpen ? "Ocultar Histórico" : "Ver Histórico da Conta"}
                     <span className="bg-emerald-100 px-2 py-0.5 rounded-full text-[10px]">{clientHistories.length}</span>
                   </button>
+                </div>
+              )}
+
+              {/* Task Operational Dashboard */}
+              {selectedClientId && (
+                <div className="mt-8 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
+                        <LayoutDashboard size={20} />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900">Dashboard Operacional</h3>
+                        <p className="text-xs text-gray-500 font-medium">Gestão de execução e tarefas críticas.</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        resetTaskForm();
+                        setIsTaskModalOpen(true);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
+                    >
+                      <PlusCircle size={16} />
+                      Nova Tarefa
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white p-5 rounded-3xl border border-black/5 shadow-sm space-y-2">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Score de Execução</p>
+                      <div className="flex items-end gap-2">
+                        <span className={cn(
+                          "text-3xl font-black",
+                          calculateExecutionScore(selectedClientId) >= 80 ? "text-emerald-600" :
+                          calculateExecutionScore(selectedClientId) >= 60 ? "text-amber-600" : "text-red-600"
+                        )}>
+                          {calculateExecutionScore(selectedClientId)}%
+                        </span>
+                        <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden mb-2">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${calculateExecutionScore(selectedClientId)}%` }}
+                            className={cn(
+                              "h-full rounded-full",
+                              calculateExecutionScore(selectedClientId) >= 80 ? "bg-emerald-500" :
+                              calculateExecutionScore(selectedClientId) >= 60 ? "bg-amber-500" : "bg-red-500"
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-3xl border border-black/5 shadow-sm space-y-1">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pendentes</p>
+                      <p className="text-3xl font-black text-blue-600">
+                        {tasks.filter(t => t.clientId === selectedClientId && t.status === 'pending').length}
+                      </p>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-3xl border border-black/5 shadow-sm space-y-1">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Vencidas</p>
+                      <p className="text-3xl font-black text-red-600">
+                        {tasks.filter(t => t.clientId === selectedClientId && t.status === 'overdue').length}
+                      </p>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-3xl border border-black/5 shadow-sm space-y-1">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Concluídas</p>
+                      <p className="text-3xl font-black text-emerald-600">
+                        {tasks.filter(t => t.clientId === selectedClientId && t.status === 'completed').length}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Critical Tasks List */}
+                  <div className="bg-white rounded-[32px] border border-black/5 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50 border-b border-black/5 flex items-center justify-between">
+                      <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                        <AlertCircle size={16} className="text-amber-500" />
+                        Tarefas Críticas & Próximos Prazos
+                      </h4>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                      {tasks
+                        .filter(t => t.clientId === selectedClientId && t.status !== 'completed')
+                        .sort((a, b) => {
+                          if (a.status === 'overdue' && b.status !== 'overdue') return -1;
+                          if (a.status !== 'overdue' && b.status === 'overdue') return 1;
+                          if (a.priority === 'high' && b.priority !== 'high') return -1;
+                          if (a.priority !== 'high' && b.priority === 'high') return 1;
+                          const da = a.deadline?.toDate ? a.deadline.toDate() : new Date(a.deadline);
+                          const db = b.deadline?.toDate ? b.deadline.toDate() : new Date(b.deadline);
+                          return da.getTime() - db.getTime();
+                        })
+                        .slice(0, 5)
+                        .map(task => (
+                          <div key={task.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors group">
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              <div className={cn(
+                                "w-2 h-10 rounded-full shrink-0",
+                                task.status === 'overdue' ? "bg-red-500" :
+                                task.priority === 'high' ? "bg-amber-500" :
+                                task.priority === 'medium' ? "bg-blue-500" : "bg-gray-300"
+                              )} />
+                              <div className="min-w-0">
+                                <h5 className="font-bold text-gray-900 truncate">{task.title}</h5>
+                                <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest">
+                                  <span className={cn(
+                                    "flex items-center gap-1",
+                                    task.status === 'overdue' ? "text-red-600" : "text-gray-400"
+                                  )}>
+                                    <Clock size={10} />
+                                    {task.deadline?.toDate ? task.deadline.toDate().toLocaleString('pt-BR') : new Date(task.deadline).toLocaleString('pt-BR')}
+                                  </span>
+                                  <span className={cn(
+                                    "px-2 py-0.5 rounded-full",
+                                    task.priority === 'high' ? "bg-red-50 text-red-600" :
+                                    task.priority === 'medium' ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
+                                  )}>
+                                    {task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Média' : 'Baixa'}
+                                  </span>
+                                  {task.recurrence?.type !== 'none' && (
+                                    <span className="text-purple-600 flex items-center gap-1">
+                                      <RefreshCw size={10} />
+                                      Recorrente
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                              <button 
+                                onClick={() => {
+                                  setTaskToComplete(task);
+                                  setIsTaskConfirmOpen(true);
+                                }}
+                                className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all"
+                                title="Concluir Tarefa"
+                              >
+                                <CheckCircle2 size={18} />
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setTaskTitle(task.title);
+                                  setTaskDescription(task.description || "");
+                                  const d = task.deadline?.toDate ? task.deadline.toDate() : new Date(task.deadline);
+                                  setTaskDeadline(d.toISOString().slice(0, 16));
+                                  setTaskPriority(task.priority);
+                                  setTaskRecurrenceType(task.recurrence?.type || 'none');
+                                  setTaskRecurrenceDays(task.recurrence?.days || []);
+                                  setIsEditingTask(true);
+                                  setEditingTaskId(task.id);
+                                  setIsTaskModalOpen(true);
+                                }}
+                                className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all"
+                                title="Editar Tarefa"
+                              >
+                                <Edit3 size={18} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteTask(task.id, task.clientId, task.title)}
+                                className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all"
+                                title="Excluir Tarefa"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      {tasks.filter(t => t.clientId === selectedClientId && t.status !== 'completed').length === 0 && (
+                        <div className="p-10 text-center space-y-3 opacity-40">
+                          <CheckCircle2 size={48} className="mx-auto text-emerald-500" />
+                          <p className="font-bold uppercase tracking-widest">Tudo em dia!</p>
+                          <p className="text-xs">Nenhuma tarefa pendente para este cliente.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -2786,8 +3224,8 @@ export default function App() {
                   {/* Categorized History Boxes */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {[
-                        { id: "communication", label: "Comunicados no Grupo", icon: LayoutList, color: "blue" },
-                        { id: "account_actions", label: "Ações da Conta", icon: Briefcase, color: "purple" },
+                        { id: "communication", label: "Comunicações do Grupo", icon: LayoutList, color: "blue" },
+                        { id: "account_actions", label: "Otimizações da Conta", icon: Briefcase, color: "purple" },
                         { id: "group_update", label: "Atualização do Grupo", icon: Sparkles, color: "emerald" },
                         { id: "meeting_summary", label: "Análise Estratégica de Reunião", icon: Calendar, color: "indigo" },
                         { id: "sales_analyzer", label: "Analisador de WhatsApp", icon: MessageCircle, color: "orange" },
@@ -2928,7 +3366,7 @@ export default function App() {
             {[
               { 
                 id: "communication", 
-                title: "Comunicado grupo", 
+                title: "Comunicações do Grupo", 
                 description: "Visão executiva para histórico do projeto.", 
                 icon: LayoutList, 
                 color: "emerald",
@@ -2936,7 +3374,7 @@ export default function App() {
               },
               { 
                 id: "account_actions", 
-                title: "Ações da conta", 
+                title: "Otimizações da Conta", 
                 description: "Análise estratégica de tarefas e ajustes realizados.", 
                 icon: Briefcase, 
                 color: "blue",
@@ -3048,8 +3486,8 @@ export default function App() {
                          <MessageCircle size={20} />}
                       </div>
                       <h4 className="font-bold text-lg">
-                        {mode === "communication" ? "Comunicado grupo" :
-                         mode === "account_actions" ? "Ações da conta" :
+                        {mode === "communication" ? "Comunicações do Grupo" :
+                         mode === "account_actions" ? "Otimizações da Conta" :
                          mode === "group_update" ? "Enviar mensagem" :
                          mode === "meeting_summary" ? "Análise estratégica de reunião" :
                          mode === "sales_analyzer" ? "Analisador de Vendas para WhatsApp" :
@@ -3325,7 +3763,7 @@ export default function App() {
                               ? "Análise de Vendas WhatsApp"
                               : mode === "ad_copy_generator"
                                 ? "Copy de Anúncio Gerada"
-                                : "Comunicado no grupo"}
+                                : "Comunicações do Grupo"}
               </h3>
               <div className="flex gap-2">
                 <button 
@@ -3482,7 +3920,7 @@ export default function App() {
                       <Users size={28} />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-bold text-gray-900">Gestão de Contas</h3>
+                      <h3 className="text-2xl font-bold text-gray-900">Gerenciador de Contas</h3>
                       <p className="text-sm text-gray-500 font-medium">Visualize e gerencie sua carteira de clientes estrategicamente.</p>
                     </div>
                   </div>
@@ -3586,43 +4024,63 @@ export default function App() {
                               </div>
                             )}
 
-                            <div className="flex flex-wrap gap-2">
+                            <div className={cn(
+                              "grid gap-3",
+                              client.platforms?.length === 1 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"
+                            )}>
                               {client.platforms?.map((p: string) => {
                                 const platformMonthly = client.platformInvestments?.[p] || 0;
-                                const platformDaily = platformMonthly / 30;
                                 const status = client.platformStatuses?.[p] || 'active';
                                 const percentage = client.investmentValue && client.investmentValue > 0 
                                   ? (platformMonthly / client.investmentValue) * 100 
                                   : 0;
                                 
                                 return (
-                                  <div key={`${client.id}-plat-${p}`} className="flex flex-col gap-1.5 px-3 py-2.5 bg-gray-50 rounded-2xl border border-black/5 min-w-[110px] group/plat transition-all hover:bg-white hover:border-purple-100">
-                                    <div className="flex justify-between items-center gap-2">
-                                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover/plat:text-purple-600 transition-colors">{p}</span>
-                                      <div className="flex items-center gap-1.5">
+                                  <div key={`${client.id}-plat-${p}`} className="p-3 bg-white rounded-2xl border border-black/5 hover:border-purple-200 transition-all shadow-sm group/plat flex flex-col justify-between">
+                                    <div className="flex justify-between items-start mb-3">
+                                      <div className="flex flex-col">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover/plat:text-purple-600 transition-colors">{p}</span>
+                                        <span className={cn(
+                                          "text-[9px] font-black uppercase tracking-tighter",
+                                          status === 'active' ? "text-emerald-600" :
+                                          status === 'blocked' ? "text-red-600" : "text-orange-600"
+                                        )}>
+                                          {status === 'active' ? 'Ativa' : status === 'blocked' ? 'Bloqueada' : 'Erro Pgto'}
+                                        </span>
+                                      </div>
+                                      <div className={cn(
+                                        "w-2.5 h-2.5 rounded-full shadow-sm",
+                                        status === 'active' ? "bg-emerald-500" :
+                                        status === 'blocked' ? "bg-red-500" : "bg-orange-500"
+                                      )} />
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                      <div className="flex justify-between items-end">
+                                        <div className="flex flex-col">
+                                          <span className="text-[9px] text-gray-400 font-bold uppercase">Investimento</span>
+                                          <span className="text-xs font-black text-gray-900">
+                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: client.currency || 'BRL' }).format(platformMonthly)}
+                                          </span>
+                                        </div>
                                         {percentage > 0 && (
-                                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100/50">
+                                          <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">
                                             {percentage.toFixed(0)}%
                                           </span>
                                         )}
-                                        <div className={cn(
-                                          "w-2 h-2 rounded-full shadow-sm",
-                                          status === 'active' ? "bg-emerald-500" :
-                                          status === 'blocked' ? "bg-red-500" : "bg-orange-500"
-                                        )} title={status === 'active' ? 'Ativa' : status === 'blocked' ? 'Bloqueada' : 'Erro de Pagamento'} />
                                       </div>
-                                    </div>
-                                    <div className="flex flex-col">
-                                      <span className="text-xs font-black text-gray-900">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: client.currency || 'BRL' }).format(platformDaily)}/dia
-                                      </span>
-                                      <span className={cn(
-                                        "text-[8px] font-black uppercase tracking-tighter",
-                                        status === 'active' ? "text-emerald-600" :
-                                        status === 'blocked' ? "text-red-600" : "text-orange-600"
-                                      )}>
-                                        {status === 'active' ? 'Ativa' : status === 'blocked' ? 'Bloqueada' : 'Erro Pgto'}
-                                      </span>
+                                      
+                                      <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                        <motion.div 
+                                          initial={{ width: 0 }}
+                                          animate={{ width: `${percentage}%` }}
+                                          className={cn(
+                                            "h-full rounded-full",
+                                            status === 'active' ? "bg-emerald-500" :
+                                            status === 'blocked' ? "bg-red-500" : "bg-orange-500"
+                                          )}
+                                        />
+                                      </div>
                                     </div>
                                   </div>
                                 );
@@ -3640,6 +4098,30 @@ export default function App() {
                                 </span>
                               </div>
                             </div>
+
+                            {/* Task Summary */}
+                            <div className="mt-4 pt-4 border-t border-gray-50 space-y-2">
+                              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                <span>Tarefas</span>
+                                <div className="flex gap-2">
+                                  {tasks.filter(t => t.clientId === client.id && t.status === 'overdue').length > 0 && (
+                                    <span className="text-red-600 flex items-center gap-1">
+                                      {tasks.filter(t => t.clientId === client.id && t.status === 'overdue').length} vencida 🔴
+                                    </span>
+                                  )}
+                                  {tasks.filter(t => t.clientId === client.id && t.priority === 'high' && t.status !== 'completed').length > 0 && (
+                                    <span className="text-amber-600 flex items-center gap-1">
+                                      {tasks.filter(t => t.clientId === client.id && t.priority === 'high' && t.status !== 'completed').length} alta prioridade
+                                    </span>
+                                  )}
+                                  {tasks.filter(t => t.clientId === client.id && t.status === 'pending').length > 0 && (
+                                    <span className="text-blue-600 flex items-center gap-1">
+                                      {tasks.filter(t => t.clientId === client.id && t.status === 'pending').length} pendentes
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
                           <div className="mt-6 pt-4 border-t border-black/5 flex items-center justify-between">
@@ -3653,6 +4135,14 @@ export default function App() {
                               onClick={() => {
                                 handleSelectClient(client.id);
                                 setIsClientsTabOpen(false);
+                                
+                                // Smart Alert
+                                const score = calculateExecutionScore(client.id);
+                                const overdueCount = tasks.filter(t => t.clientId === client.id && t.status === 'overdue').length;
+                                if (score < 60 || overdueCount > 0) {
+                                  setTaskAlertClient(client);
+                                  setIsTaskAlertOpen(true);
+                                }
                               }}
                               className="text-[10px] font-black text-purple-600 uppercase tracking-widest hover:underline"
                             >
@@ -3792,6 +4282,245 @@ export default function App() {
               onCopy={handleCopyHistoryRecord}
             />
           )}
+
+          {/* Task Modal */}
+          {isTaskModalOpen && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                className="bg-white rounded-[32px] p-8 w-full max-w-lg shadow-2xl border border-black/5 space-y-6"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-gray-900">
+                    {isEditingTask ? "Editar Tarefa" : "Nova Tarefa"}
+                  </h3>
+                  <button onClick={() => setIsTaskModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-xl transition-all">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-gray-400">Título da Tarefa</label>
+                    <input 
+                      type="text" 
+                      value={taskTitle}
+                      onChange={(e) => setTaskTitle(e.target.value)}
+                      placeholder="Ex: Otimizar lances de palavra-chave"
+                      className="w-full px-4 py-3 bg-gray-50 border border-black/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-gray-400">Descrição (Opcional)</label>
+                    <textarea 
+                      value={taskDescription}
+                      onChange={(e) => setTaskDescription(e.target.value)}
+                      placeholder="Detalhes sobre a execução..."
+                      className="w-full px-4 py-3 bg-gray-50 border border-black/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 min-h-[100px] resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-gray-400">Prazo</label>
+                      <input 
+                        type="datetime-local" 
+                        value={taskDeadline}
+                        onChange={(e) => setTaskDeadline(e.target.value)}
+                        className="w-full px-4 py-3 bg-gray-50 border border-black/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-gray-400">Prioridade</label>
+                      <select 
+                        value={taskPriority}
+                        onChange={(e) => setTaskPriority(e.target.value as any)}
+                        className="w-full px-4 py-3 bg-gray-50 border border-black/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+                      >
+                        <option value="low">Baixa 🔵</option>
+                        <option value="medium">Média 🟡</option>
+                        <option value="high">Alta 🔴</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-gray-50">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold uppercase text-gray-400">Recorrência</label>
+                      <select 
+                        value={taskRecurrenceType}
+                        onChange={(e) => setTaskRecurrenceType(e.target.value as any)}
+                        className="px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-100 rounded-lg text-xs font-bold outline-none"
+                      >
+                        <option value="none">Nenhuma</option>
+                        <option value="daily">Diária</option>
+                        <option value="weekly">Semanal</option>
+                        <option value="monthly">Mensal</option>
+                      </select>
+                    </div>
+
+                    {taskRecurrenceType === 'weekly' && (
+                      <div className="flex flex-wrap gap-2 animate-in fade-in slide-in-from-top-2">
+                        {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map(day => (
+                          <button
+                            key={day}
+                            onClick={() => {
+                              if (taskRecurrenceDays.includes(day)) {
+                                setTaskRecurrenceDays(prev => prev.filter(d => d !== day));
+                              } else {
+                                setTaskRecurrenceDays(prev => [...prev, day]);
+                              }
+                            }}
+                            className={cn(
+                              "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all",
+                              taskRecurrenceDays.includes(day) 
+                                ? "bg-purple-500 text-white shadow-sm" 
+                                : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                            )}
+                          >
+                            {day.slice(0, 3)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    onClick={() => setIsTaskModalOpen(false)}
+                    className="flex-1 py-4 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={() => handleSaveTask(selectedClientId!)}
+                    disabled={!taskTitle || !taskDeadline}
+                    className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
+                  >
+                    {isEditingTask ? "Salvar Alterações" : "Criar Tarefa"}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Task Alert Modal */}
+          {isTaskAlertOpen && taskAlertClient && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 40 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                className="bg-white rounded-[40px] p-10 w-full max-w-md shadow-2xl border border-red-100 text-center space-y-6 relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 w-full h-2 bg-red-500" />
+                <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center text-red-500 mx-auto shadow-inner">
+                  <AlertTriangle size={40} />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Atenção Necessária!</h3>
+                  <p className="text-gray-500 font-medium">
+                    A conta <span className="font-bold text-gray-900">{taskAlertClient.name}</span> possui pendências críticas que exigem sua ação imediata.
+                  </p>
+                </div>
+                
+                <div className="bg-red-50 rounded-2xl p-6 border border-red-100 space-y-4">
+                  {calculateExecutionScore(taskAlertClient.id) < 60 && (
+                    <div className="flex items-center gap-3 text-left">
+                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-red-500 shadow-sm">
+                        <TrendingDown size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-red-700 uppercase tracking-widest">Baixa Execução</p>
+                        <p className="text-xs text-red-600/80">Score atual: {calculateExecutionScore(taskAlertClient.id)}%</p>
+                      </div>
+                    </div>
+                  )}
+                  {tasks.filter(t => t.clientId === taskAlertClient.id && t.status === 'overdue').length > 0 && (
+                    <div className="flex items-center gap-3 text-left">
+                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-red-500 shadow-sm">
+                        <Clock size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-red-700 uppercase tracking-widest">Tarefas Vencidas</p>
+                        <p className="text-xs text-red-600/80">{tasks.filter(t => t.clientId === taskAlertClient.id && t.status === 'overdue').length} tarefas fora do prazo.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={() => setIsTaskAlertOpen(false)}
+                  className="w-full py-5 bg-gray-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-black/20"
+                >
+                  Entendido, vou resolver
+                </button>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Task Completion Confirm */}
+          {isTaskConfirmOpen && taskToComplete && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[32px] p-8 w-full max-w-sm shadow-2xl border border-black/5 text-center space-y-6"
+              >
+                <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 mx-auto">
+                  <CheckCircle2 size={32} />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold text-gray-900">Concluir Tarefa?</h3>
+                  <p className="text-sm text-gray-500">
+                    Você confirma a execução da tarefa: <br/>
+                    <span className="font-bold text-gray-900">"{taskToComplete.title}"</span>
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setIsTaskConfirmOpen(false)}
+                    className="flex-1 py-4 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+                  >
+                    Não
+                  </button>
+                  <button 
+                    onClick={() => handleCompleteTask(taskToComplete)}
+                    className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+                  >
+                    Sim, Concluir
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Task Success Message */}
+          <AnimatePresence>
+            {showTaskSuccess && (
+              <motion.div 
+                initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[130] bg-emerald-500 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold"
+              >
+                <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                  <CheckCircle2 size={20} />
+                </div>
+                <span>Tarefa concluída com sucesso! Bom trabalho.</span>
+                <motion.div 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: [0, 1.2, 1] }}
+                  transition={{ delay: 0.2 }}
+                  className="absolute -top-12 left-1/2 -translate-x-1/2 text-4xl"
+                >
+                  🚀
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {isSummaryOptionsModalOpen && (
             <SummaryOptionsModal 
@@ -4385,9 +5114,9 @@ const ClientHistoryModal = ({ isOpen, onClose, client, history, onViewDetail, on
                     )}>
                       {record.mode === "client_response" ? "Resposta" :
                        record.mode === "group_update" ? "Envio" :
-                       record.mode === "account_actions" ? "Ações" :
+                       record.mode === "account_actions" ? "Otimizações" :
                        record.mode === "meeting_summary" ? "Reunião" :
-                       record.mode === "sales_analyzer" ? "Vendas" : "Comunicado"}
+                       record.mode === "sales_analyzer" ? "Vendas" : "Comunicação"}
                     </span>
                     <span className="text-[10px] font-bold text-gray-400">
                       {record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString('pt-BR') : new Date(record.createdAt).toLocaleString('pt-BR')}
@@ -4514,8 +5243,8 @@ const SummaryOptionsModal = ({
   if (!isOpen) return null;
 
   const categories = [
-    { id: "communication", label: "Comunicado grupo", icon: LayoutList, color: "emerald" },
-    { id: "account_actions", label: "Ações da conta", icon: Briefcase, color: "blue" },
+    { id: "communication", label: "Comunicações do Grupo", icon: LayoutList, color: "emerald" },
+    { id: "account_actions", label: "Otimizações da Conta", icon: Briefcase, color: "blue" },
     { id: "group_update", label: "Enviar mensagem", icon: Sparkles, color: "purple" },
     { id: "meeting_summary", label: "Análise estratégica de reunião", icon: Calendar, color: "blue" },
     { id: "sales_analyzer", label: "Analisador de WhatsApp", icon: MessageCircle, color: "orange" },
