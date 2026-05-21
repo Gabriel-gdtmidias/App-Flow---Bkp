@@ -2,16 +2,25 @@
   "entities": {
     "Client": {
       "title": "Client",
-      "description": "A client managed by the user.",
+      "description": "A client managed by the agency.",
       "type": "object",
       "properties": {
         "name": {
           "type": "string",
           "description": "The name of the client."
         },
+        "city": {
+          "type": "string",
+          "description": "The city of the client."
+        },
         "niche": {
           "type": "string",
           "description": "The business niche of the client."
+        },
+        "businessModels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Business models (E-commerce, Negócio Local, Infoproduto, Outros)."
         },
         "logo": {
           "type": "string",
@@ -33,7 +42,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["active", "inactive"],
+          "enum": ["active", "delinquent", "paused", "inactive"],
           "description": "The status of the client."
         },
         "country": {
@@ -44,6 +53,28 @@
           "type": "string",
           "description": "Currency of the investment (BRL, USD, EUR, GBP, etc.)."
         },
+        "startDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Project start date."
+        },
+        "endDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Project end date (optional)."
+        },
+        "contractTerm": {
+          "type": "number",
+          "description": "Contract term in months."
+        },
+        "commission": {
+          "type": "number",
+          "description": "Project commission (value or %)."
+        },
+        "responsibleManagerId": {
+          "type": "string",
+          "description": "UID of the team member responsible for this client."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -51,10 +82,62 @@
         },
         "uid": {
           "type": "string",
-          "description": "The user ID who owns this client."
+          "description": "The user ID who created this client record."
         }
       },
-      "required": ["name", "createdAt", "uid"]
+      "required": ["name", "country", "niche", "status", "startDate", "createdAt", "uid"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A team member of the agency.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Full name of the team member."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email of the team member."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "user"],
+          "description": "Access level."
+        },
+        "function": {
+          "type": "string",
+          "description": "Job function (e.g., Gestor de Tráfego)."
+        },
+        "permissions": {
+          "type": "object",
+          "description": "Granular permissions for modules.",
+          "properties": {
+            "modules": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "view": { "type": "boolean" },
+                  "create": { "type": "boolean" },
+                  "edit": { "type": "boolean" },
+                  "delete": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the user was added."
+        },
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID."
+        }
+      },
+      "required": ["name", "email", "role", "createdAt", "uid"]
     },
     "History": {
       "title": "History",
@@ -191,6 +274,10 @@
     "/tasks/{taskId}": {
       "schema": "Task",
       "description": "Collection of tasks for clients."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of team members."
     }
   }
 }

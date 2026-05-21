@@ -17,7 +17,7 @@ export async function generateAdCopy(
   const systemInstruction = `
     Você é um gerador de copy dentro do GDT Insights.
     Objetivo: criar anúncios de alta conversão com base em poucas informações, mantendo clareza, objetividade e foco em resultado.
-
+    
     ⚠️ Regras:
     - Ser direto e estratégico (evitar textos longos)
     - Linguagem simples, persuasiva e humana
@@ -80,7 +80,7 @@ export async function generateAdCopy(
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: [{ parts }],
+      contents: { parts },
       config: {
         systemInstruction,
         temperature: 0.7,
@@ -128,7 +128,7 @@ export async function summarizeChat(
     2. **Tópicos Principais**: Uma lista dos assuntos discutidos.
     3. **Decisões e Combinados**: O que foi decidido ou agendado.
     4. **Participantes Ativos**: Quem mais interagiu (sem expor dados sensíveis).
-    5. **Clima da Conversa**: Se foi amigável, tenso, produtivo, etc.
+    5. **Clima da Conversa**: Se foi amigável, tenso, productivo, etc.
     
     Formate a saída em Markdown elegante. Use negrito para nomes e datas importantes.
     Deixe DUAS linhas de espaço entre cada seção para facilitar a leitura.
@@ -383,7 +383,7 @@ export async function summarizeChat(
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: [{ parts }],
+      contents: { parts },
       config: {
         systemInstruction,
         temperature: 0.4,
@@ -398,7 +398,7 @@ export async function summarizeChat(
 }
 
 export async function transcribeAudio(audioData: { data: string; mimeType: string }) {
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-3.1-pro-preview";
   const systemInstruction = "Você é um assistente de transcrição altamente preciso. Sua única tarefa é transcrever o áudio fornecido palavra por palavra, sem adicionar comentários, insights ou formatação extra. Apenas o texto falado.";
   
   const parts = [
@@ -412,19 +412,28 @@ export async function transcribeAudio(audioData: { data: string; mimeType: strin
   ];
 
   try {
+    console.log("Iniciando transcrição com o modelo:", model);
     const response = await ai.models.generateContent({
       model,
-      contents: [{ parts }],
+      contents: { parts },
       config: {
         systemInstruction,
         temperature: 0.1,
       },
     });
 
+    if (!response.text) {
+      console.warn("Transcrição retornou vazia ou indefinida.");
+      return "";
+    }
+
     return response.text;
-  } catch (error) {
-    console.error("Error transcribing audio:", error);
-    throw new Error("Falha ao transcrever o áudio.");
+  } catch (error: any) {
+    console.error("Erro detalhado na transcrição Gemini:", error);
+    // Se falhar com o pro, tenta o flash como fallback (mesmo sendo proibido como padrão, aqui é recuperação de erro)
+    // Na verdade, melhor não arriscar violar a regra se não for necessário.
+    // Vamos apenas lançar o erro com mais contexto se possível.
+    throw new Error(`Falha ao transcrever o áudio: ${error?.message || 'Erro desconhecido'}`);
   }
 }
 
@@ -527,7 +536,7 @@ export async function summarizeHistory(
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: [{ parts: [{ text: `Aqui está o histórico do período ${period} para o cliente ${clientName}:\n\n${historyText}` }] }],
+      contents: { parts: [{ text: `Aqui está o histórico do período ${period} para o cliente ${clientName}:\n\n${historyText}` }] },
       config: {
         systemInstruction,
         temperature: 0.3,
@@ -562,7 +571,7 @@ export async function generateGroupMessageFromHistory(
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: [{ parts: [{ text: `Gere uma mensagem de WhatsApp baseada nesta análise de atividades:\n\n${historySummary}` }] }],
+      contents: { parts: [{ text: `Gere uma mensagem de WhatsApp baseada nesta análise de atividades:\n\n${historySummary}` }] },
       config: {
         systemInstruction,
         temperature: 0.5,
@@ -623,7 +632,7 @@ export async function generateTaskInsights(
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: [{ parts: [{ text: `Analise as seguintes tarefas para o cliente ${clientName}:\n\n${tasksText}` }] }],
+      contents: { parts: [{ text: `Analise as seguintes tarefas para o cliente ${clientName}:\n\n${tasksText}` }] },
       config: {
         systemInstruction,
         temperature: 0.3,

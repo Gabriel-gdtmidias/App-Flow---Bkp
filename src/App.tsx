@@ -47,6 +47,7 @@ import {
   Edit2,
   BarChart3,
   Megaphone,
+  ExternalLink,
   DollarSign,
   TrendingUp,
   Edit3,
@@ -54,8 +55,7 @@ import {
   AlertCircle,
   Clock,
   RefreshCw,
-  TrendingDown,
-  BrainCircuit
+  TrendingDown
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { jsPDF } from "jspdf";
@@ -66,7 +66,6 @@ import {
   summarizeHistory, 
   generateGroupMessageFromHistory,
   generateAdCopy,
-  generateTaskInsights,
   type SummaryMode 
 } from "./services/gemini";
 import { cn } from "./lib/utils";
@@ -252,6 +251,7 @@ interface Task {
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [authTimeout, setAuthTimeout] = useState(false);
   const [profilePic, setProfilePic] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -307,6 +307,7 @@ export default function App() {
   const [selectedCategoryForModal, setSelectedCategoryForModal] = useState<{ id: string; label: string; icon: any; color: string } | null>(null);
   const [isCategoryHistoryModalOpen, setIsCategoryHistoryModalOpen] = useState(false);
   const [expandedMetricsClientId, setExpandedMetricsClientId] = useState<string | null>(null);
+
   const [selectedSummaryModes, setSelectedSummaryModes] = useState<SummaryMode[]>(["communication", "account_actions", "group_update", "meeting_summary"]);
   const [isSummaryOptionsModalOpen, setIsSummaryOptionsModalOpen] = useState(false);
   const [summaryOption, setSummaryOption] = useState<"all" | "selected">("all");
@@ -314,10 +315,6 @@ export default function App() {
   // Task Management State
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [isTasksListModalOpen, setIsTasksListModalOpen] = useState(false);
-  const [tasksListFilter, setTasksListFilter] = useState<'all' | 'pending' | 'overdue' | 'completed'>('all');
-  const [taskInsights, setTaskInsights] = useState<string | null>(null);
-  const [isAnalyzingTasks, setIsAnalyzingTasks] = useState(false);
   const [isEditingTask, setIsEditingTask] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
@@ -341,9 +338,6 @@ export default function App() {
   const [adUseEmojis, setAdUseEmojis] = useState<boolean>(true);
   const [generatedAdCopy, setGeneratedAdCopy] = useState<string | null>(null);
   const [isGeneratingAdCopy, setIsGeneratingAdCopy] = useState(false);
-
-  const [isOverdueAlertOpen, setIsOverdueAlertOpen] = useState(false);
-  const [overdueTasksCount, setOverdueTasksCount] = useState(0);
 
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -567,23 +561,6 @@ export default function App() {
     return Math.round((completed / total) * 100);
   };
 
-  const handleAnalyzeTasks = async () => {
-    if (!selectedClientId || !selectedClient) return;
-    
-    setIsAnalyzingTasks(true);
-    try {
-      const clientTasks = tasks.filter(t => t.clientId === selectedClientId);
-      const score = calculateExecutionScore(selectedClientId);
-      const insights = await generateTaskInsights(selectedClient.name, clientTasks, score);
-      setTaskInsights(insights);
-    } catch (err) {
-      console.error(err);
-      setError("Falha ao analisar tarefas.");
-    } finally {
-      setIsAnalyzingTasks(false);
-    }
-  };
-
   const handleSaveTask = async (clientId: string) => {
     if (!taskTitle || !taskDeadline) return;
 
@@ -607,8 +584,8 @@ export default function App() {
         await updateDoc(doc(db, "tasks", editingTaskId), taskData);
         await addDoc(collection(db, "histories"), {
           clientId,
-          mode: 'tasks',
-          content: `Tarefa editada: ${taskTitle} | Prioridade: ${taskPriority} | Prazo: ${new Date(taskDeadline).toLocaleString('pt-BR')} | Editado em: ${new Date().toLocaleString('pt-BR')}`,
+          mode: 'account_actions',
+          content: `**TAREFA EDITADA:** ${taskTitle}\nPrioridade: ${taskPriority}\nPrazo: ${new Date(taskDeadline).toLocaleString('pt-BR')}`,
           createdAt: serverTimestamp(),
           uid: user?.uid
         });
@@ -616,8 +593,8 @@ export default function App() {
         await addDoc(collection(db, "tasks"), taskData);
         await addDoc(collection(db, "histories"), {
           clientId,
-          mode: 'tasks',
-          content: `Tarefa criada: ${taskTitle} | Prioridade: ${taskPriority} | Prazo: ${new Date(taskDeadline).toLocaleString('pt-BR')} | Criado em: ${new Date().toLocaleString('pt-BR')}`,
+          mode: 'account_actions',
+          content: `**TAREFA CRIADA:** ${taskTitle}\nPrioridade: ${taskPriority}\nPrazo: ${new Date(taskDeadline).toLocaleString('pt-BR')}`,
           createdAt: serverTimestamp(),
           uid: user?.uid
         });
@@ -638,8 +615,8 @@ export default function App() {
 
       await addDoc(collection(db, "histories"), {
         clientId: task.clientId,
-        mode: 'tasks',
-        content: `Tarefa concluída: ${task.title} | Concluído em: ${new Date().toLocaleString('pt-BR')}`,
+        mode: 'account_actions',
+        content: `**TAREFA CONCLUÍDA:** ${task.title}\nData: ${new Date().toLocaleString('pt-BR')}`,
         createdAt: serverTimestamp(),
         uid: user?.uid
       });
@@ -682,8 +659,8 @@ export default function App() {
       await deleteDoc(doc(db, "tasks", taskId));
       await addDoc(collection(db, "histories"), {
         clientId,
-        mode: 'tasks',
-        content: `Tarefa excluída: ${title} | Removida em: ${new Date().toLocaleString('pt-BR')}`,
+        mode: 'account_actions',
+        content: `**TAREFA EXCLUÍDA:** ${title}`,
         createdAt: serverTimestamp(),
         uid: user?.uid
       });
@@ -715,6 +692,16 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Fallback for Auth loading inside partitioned iframe environments
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isAuthReady) {
+        setAuthTimeout(true);
+      }
+    }, 3500); // Trigger after 3.5 seconds
+    return () => clearTimeout(timer);
+  }, [isAuthReady]);
 
   // Test Connection
   useEffect(() => {
@@ -1163,15 +1150,6 @@ export default function App() {
     const client = clients.find(c => c.id === clientId);
     const clientName = client ? client.name : "Remover filtro";
 
-    // Check for overdue tasks
-    if (clientId) {
-      const clientOverdueTasks = tasks.filter(t => t.clientId === clientId && t.status === 'overdue');
-      if (clientOverdueTasks.length > 0) {
-        setOverdueTasksCount(clientOverdueTasks.length);
-        setIsOverdueAlertOpen(true);
-      }
-    }
-
     // If no client is currently selected, skip confirmation
     if (!selectedClientId && !isGenericMode) {
       setSelectedClientId(clientId);
@@ -1512,9 +1490,22 @@ export default function App() {
   };
 
   const startRecording = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError("Seu navegador não suporta gravação de áudio ou a conexão não é segura (HTTPS é necessário).");
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Detect supported mimeType
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
+        ? 'audio/webm' 
+        : MediaRecorder.isTypeSupported('audio/mp4') 
+          ? 'audio/mp4' 
+          : 'audio/ogg';
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -1526,14 +1517,14 @@ export default function App() {
 
       mediaRecorder.onstop = async () => {
         setIsTranscribing(true);
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         const reader = new FileReader();
         reader.onloadend = async () => {
           const base64String = (reader.result as string).split(',')[1];
           try {
             const transcription = await transcribeAudio({
               data: base64String,
-              mimeType: 'audio/webm'
+              mimeType: mimeType
             });
             
             if (transcription) {
@@ -1546,9 +1537,9 @@ export default function App() {
                 };
               });
             }
-          } catch (err) {
+          } catch (err: any) {
             console.error("Transcription error:", err);
-            setError("Falha ao transcrever o áudio. Tente novamente.");
+            setError(err?.message || "Falha ao transcrever o áudio. Tente novamente.");
           } finally {
             setIsTranscribing(false);
           }
@@ -1571,7 +1562,17 @@ export default function App() {
       }, 1000);
     } catch (err) {
       console.error("Error accessing microphone:", err);
-      setError("Não foi possível acessar o microfone. Verifique as permissões.");
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      
+      if (err instanceof Error && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+        if (isSafari) {
+          setError("O Safari possui restrições rigorosas de microfone em iframes. Por favor, abra o aplicativo em uma nova aba para gravar áudio.");
+        } else {
+          setError("Acesso ao microfone negado. Clique no ícone de cadeado na barra de endereços para permitir o acesso ou abra o aplicativo em uma nova aba.");
+        }
+      } else {
+        setError("Não foi possível acessar o microfone. Verifique se outro aplicativo está usando o microfone ou tente abrir em uma nova aba.");
+      }
     }
   };
 
@@ -2041,8 +2042,44 @@ export default function App() {
 
   if (!isAuthReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f5f5f5]">
-        <Loader2 className="animate-spin text-emerald-500" size={48} />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f5f5f5] p-6 text-center select-none font-sans">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-black/5 space-y-6 flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
+          <Loader2 className="animate-spin text-emerald-500" size={48} />
+          
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold text-gray-900">Carregando GDT Insights...</h3>
+            <p className="text-sm text-gray-500">Verificando sua sessão de forma segura.</p>
+          </div>
+
+          {authTimeout && (
+            <div className="pt-4 border-t border-gray-100 flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-top-4 duration-500">
+              <div className="flex gap-2 items-start text-xs text-amber-600 bg-amber-50 p-4 rounded-2xl border border-amber-100 text-left leading-relaxed">
+                <AlertTriangle className="shrink-0 mt-0.5 animate-bounce-slow" size={16} />
+                <span>
+                  O carregamento está demorando. Navegadores modernos podem bloquear os cookies de autenticação do Firebase em links de compartilhamento (iframe).
+                </span>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => window.open(window.location.href, "_blank")}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
+                >
+                  <ExternalLink size={14} />
+                  Abrir em Nova Aba
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAuthReady(true)}
+                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Tentar Continuar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -2126,6 +2163,23 @@ export default function App() {
                 : "Entre para acessar seus insights e análises estratégicas."}
             </p>
           </div>
+
+          {authTimeout && (
+            <div className="flex gap-2 items-start text-xs text-amber-600 bg-amber-50 p-4 rounded-2xl border border-amber-100 leading-relaxed animate-in fade-in slide-in-from-top-2 duration-300">
+              <AlertTriangle className="shrink-0 mt-0.5" size={16} />
+              <div>
+                <span>O Firebase detectou restrições de iframe. Se tiver problemas para entrar, por favor, clique para </span>
+                <button
+                  type="button"
+                  onClick={() => window.open(window.location.href, "_blank")}
+                  className="font-bold underline text-amber-700 hover:text-amber-800 cursor-pointer"
+                >
+                  abrir o aplicativo em nova aba
+                </button>
+                <span> e garantir o acesso.</span>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={isRegistering ? handleEmailRegister : handleEmailLogin} className="space-y-4">
             {isRegistering && (
@@ -2942,44 +2996,26 @@ export default function App() {
                       </div>
                     </div>
 
-                    <button 
-                      onClick={() => {
-                        setTasksListFilter('pending');
-                        setIsTasksListModalOpen(true);
-                      }}
-                      className="bg-white p-5 rounded-3xl border border-black/5 shadow-sm space-y-1 text-left hover:border-blue-200 transition-all group"
-                    >
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-blue-500">Pendentes</p>
+                    <div className="bg-white p-5 rounded-3xl border border-black/5 shadow-sm space-y-1">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pendentes</p>
                       <p className="text-3xl font-black text-blue-600">
                         {tasks.filter(t => t.clientId === selectedClientId && t.status === 'pending').length}
                       </p>
-                    </button>
+                    </div>
 
-                    <button 
-                      onClick={() => {
-                        setTasksListFilter('overdue');
-                        setIsTasksListModalOpen(true);
-                      }}
-                      className="bg-white p-5 rounded-3xl border border-black/5 shadow-sm space-y-1 text-left hover:border-red-200 transition-all group"
-                    >
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-red-500">Vencidas</p>
+                    <div className="bg-white p-5 rounded-3xl border border-black/5 shadow-sm space-y-1">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Vencidas</p>
                       <p className="text-3xl font-black text-red-600">
                         {tasks.filter(t => t.clientId === selectedClientId && t.status === 'overdue').length}
                       </p>
-                    </button>
+                    </div>
 
-                    <button 
-                      onClick={() => {
-                        setTasksListFilter('completed');
-                        setIsTasksListModalOpen(true);
-                      }}
-                      className="bg-white p-5 rounded-3xl border border-black/5 shadow-sm space-y-1 text-left hover:border-emerald-200 transition-all group"
-                    >
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-emerald-500">Concluídas</p>
+                    <div className="bg-white p-5 rounded-3xl border border-black/5 shadow-sm space-y-1">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Concluídas</p>
                       <p className="text-3xl font-black text-emerald-600">
                         {tasks.filter(t => t.clientId === selectedClientId && t.status === 'completed').length}
                       </p>
-                    </button>
+                    </div>
                   </div>
 
                   {/* Critical Tasks List */}
@@ -3876,9 +3912,20 @@ export default function App() {
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-4">
-            <Info className="shrink-0 mt-0.5" size={18} />
-            <p className="text-sm font-medium">{error}</p>
+          <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl flex flex-col gap-3 animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-start gap-3">
+              <Info className="shrink-0 mt-0.5" size={18} />
+              <p className="text-sm font-medium">{error}</p>
+            </div>
+            {(error.includes("microfone") || error.includes("aba")) && (
+              <button 
+                onClick={() => window.open(window.location.href, '_blank')}
+                className="self-start flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition-all shadow-sm"
+              >
+                <ExternalLink size={14} />
+                Abrir em Nova Aba
+              </button>
+            )}
           </div>
         )}
 
@@ -4223,21 +4270,12 @@ export default function App() {
                               })}
                             </div>
 
-                            <div className="p-4 bg-gray-50 rounded-2xl border border-black/5 space-y-3">
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-black/5 space-y-2">
                               <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Investimento Mensal</span>
                                 <span className="text-sm font-black text-gray-900">
                                   {client.investmentValue ? 
                                     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: client.currency || 'BRL' }).format(client.investmentValue) : 
-                                    "---"
-                                  }
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center pt-2 border-t border-black/5">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Investimento Diário</span>
-                                <span className="text-xs font-bold text-emerald-600">
-                                  {client.investmentValue ? 
-                                    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: client.currency || 'BRL' }).format(client.investmentValue / 30) : 
                                     "---"
                                   }
                                 </span>
@@ -4427,39 +4465,6 @@ export default function App() {
               onCopy={handleCopyHistoryRecord}
             />
           )}
-
-          {/* Tasks Timeline Modal */}
-          <TasksTimelineModal 
-            isOpen={isTasksListModalOpen}
-            onClose={() => {
-              setIsTasksListModalOpen(false);
-              setTaskInsights(null);
-            }}
-            tasks={tasks.filter(t => t.clientId === selectedClientId)}
-            filter={tasksListFilter}
-            setFilter={setTasksListFilter}
-            onComplete={(task: any) => {
-              setTaskToComplete(task);
-              setIsTaskConfirmOpen(true);
-            }}
-            onEdit={(task: any) => {
-              setTaskTitle(task.title);
-              setTaskDescription(task.description || "");
-              const d = task.deadline?.toDate ? task.deadline.toDate() : new Date(task.deadline);
-              setTaskDeadline(d.toISOString().slice(0, 16));
-              setTaskPriority(task.priority);
-              setTaskRecurrenceType(task.recurrence?.type || 'none');
-              setTaskRecurrenceDays(task.recurrence?.days || []);
-              setIsEditingTask(true);
-              setEditingTaskId(task.id);
-              setIsTaskModalOpen(true);
-            }}
-            onDelete={handleDeleteTask}
-            executionScore={calculateExecutionScore(selectedClientId!)}
-            insights={taskInsights}
-            isAnalyzing={isAnalyzingTasks}
-            onAnalyze={handleAnalyzeTasks}
-          />
 
           {/* Task Modal */}
           {isTaskModalOpen && (
@@ -5016,9 +5021,9 @@ const ClientModal = ({
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Plataformas de Tráfego</label>
                 <div className="flex flex-wrap gap-2">
-                  {["Google", "Meta"].map(p => (
+                  {["Google", "Meta"].map((p, idx) => (
                     <button
-                      key={p}
+                      key={`base-plat-${p}-${idx}`}
                       type="button"
                       onClick={() => togglePlatform(p)}
                       className={cn(
@@ -5029,9 +5034,9 @@ const ClientModal = ({
                       {p}
                     </button>
                   ))}
-                  {platforms.filter(p => !["Google", "Meta"].includes(p)).map(p => (
+                  {platforms.filter(p => !["Google", "Meta"].includes(p)).map((p, idx) => (
                     <button
-                      key={p}
+                      key={`custom-plat-${p}-${idx}`}
                       type="button"
                       onClick={() => togglePlatform(p)}
                       className="px-4 py-2 rounded-xl text-sm font-bold bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
@@ -5083,13 +5088,13 @@ const ClientModal = ({
                     <p className="text-xs text-gray-400 italic">Selecione ao menos uma plataforma para definir o investimento.</p>
                   ) : (
                     <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                      {platforms.map((p: string) => {
+                      {platforms.map((p: string, idx: number) => {
                         const platformValue = parseFloat(platformInvestments[p]) || 0;
                         const totalValue = Object.values(platformInvestments || {}).reduce((acc: number, curr: any) => acc + (parseFloat(curr) || 0), 0) as number;
                         const percentage = totalValue > 0 ? (platformValue / totalValue) * 100 : 0;
                         
                         return (
-                          <div key={p} className="flex flex-col gap-4 bg-gray-50 p-5 rounded-3xl border border-black/5 shadow-sm">
+                          <div key={`plat-inv-${p}-${idx}`} className="flex flex-col gap-4 bg-gray-50 p-5 rounded-3xl border border-black/5 shadow-sm">
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-2">
                                 <div className={cn(
@@ -5159,12 +5164,12 @@ const ClientModal = ({
                       {currency} {(investmentValue as number).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center pt-4 border-t border-black/5">
-                    <div className="flex flex-col">
-                      <span className="text-sm text-gray-500 font-medium">Investimento Diário</span>
-                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">(Total ÷ 30 dias)</span>
-                    </div>
-                    <span className="font-bold text-emerald-600">
+                  
+                  <div className="h-px bg-gray-200" />
+
+                  <div className="bg-white rounded-2xl p-4 flex justify-between items-center shadow-sm">
+                    <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Total Diário</span>
+                    <span className="font-black text-emerald-500">
                       {currency} {(dailyInvestment as number).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -5183,351 +5188,6 @@ const ClientModal = ({
             </button>
           </div>
         </form>
-      </motion.div>
-    </div>
-  );
-};
-
-const TasksTimelineModal = ({ 
-  isOpen, 
-  onClose, 
-  tasks, 
-  filter, 
-  setFilter, 
-  onComplete, 
-  onEdit, 
-  onDelete,
-  executionScore,
-  insights,
-  isAnalyzing,
-  onAnalyze
-}: any) => {
-  if (!isOpen) return null;
-
-  const filteredTasks = tasks.filter((t: any) => {
-    if (filter === 'all') return true;
-    return t.status === filter;
-  }).sort((a: any, b: any) => {
-    const da = a.deadline?.toDate ? a.deadline.toDate() : new Date(a.deadline);
-    const db = b.deadline?.toDate ? b.deadline.toDate() : new Date(b.deadline);
-    return da.getTime() - db.getTime();
-  });
-
-  const overdueCount = tasks.filter((t: any) => t.status === 'overdue').length;
-  const showAlert = executionScore < 60 || overdueCount > 2;
-
-  const getTaskDuration = (task: any) => {
-    const deadline = task.deadline?.toDate ? task.deadline.toDate() : new Date(task.deadline);
-    const now = new Date();
-    
-    if (task.status === 'completed' && task.completedAt) {
-      const completedAt = task.completedAt?.toDate ? task.completedAt.toDate() : new Date(task.completedAt);
-      const diff = completedAt.getTime() - deadline.getTime();
-      const days = Math.floor(Math.abs(diff) / (1000 * 60 * 60 * 24));
-      if (diff <= 0) return days === 0 ? "Concluída no prazo" : `Concluída ${days} dias antes do prazo`;
-      return `Concluída com ${days} dias de atraso`;
-    }
-    
-    if (task.status === 'overdue') {
-      const diff = now.getTime() - deadline.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      return `Atrasada há ${days} dias`;
-    }
-    
-    const diff = deadline.getTime() - now.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days < 0) return "Vencida";
-    if (days === 0) return "Vence hoje";
-    return `Vence em ${days} dias`;
-  };
-
-  return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-[32px] w-full max-w-4xl max-h-[90vh] shadow-2xl border border-black/5 flex flex-col overflow-hidden"
-      >
-        {/* Header */}
-        <div className="px-8 py-6 border-b border-black/5 flex items-center justify-between bg-gray-50/50">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
-              <LayoutDashboard size={24} />
-            </div>
-            <div>
-              <h3 className="text-2xl font-black text-gray-900">Timeline Inteligente</h3>
-              <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Análise Estratégica de Execução</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 bg-white rounded-xl shadow-sm border border-black/5 transition-all">
-            <X size={24} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-          {/* Alert & Score Section */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Execution Score Card */}
-            <div className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Score de Execução</p>
-                <span className={cn(
-                  "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest",
-                  executionScore >= 80 ? "bg-emerald-50 text-emerald-600" :
-                  executionScore >= 60 ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
-                )}>
-                  {executionScore >= 80 ? "Excelente" : executionScore >= 60 ? "Atenção" : "Crítico"}
-                </span>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className={cn(
-                  "text-4xl font-black",
-                  executionScore >= 80 ? "text-emerald-600" :
-                  executionScore >= 60 ? "text-amber-600" : "text-red-600"
-                )}>
-                  {executionScore}%
-                </span>
-                <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${executionScore}%` }}
-                    className={cn(
-                      "h-full rounded-full transition-all duration-1000",
-                      executionScore >= 80 ? "bg-emerald-500" :
-                      executionScore >= 60 ? "bg-amber-500" : "bg-red-500"
-                    )}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Strategic Alert */}
-            <div className={cn(
-              "md:col-span-2 p-6 rounded-[32px] border flex items-center gap-6 transition-all",
-              showAlert ? "bg-red-50 border-red-100 animate-pulse" : "bg-emerald-50 border-emerald-100"
-            )}>
-              <div className={cn(
-                "w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-lg",
-                showAlert ? "bg-red-500 text-white shadow-red-500/20" : "bg-emerald-500 text-white shadow-emerald-500/20"
-              )}>
-                {showAlert ? <AlertTriangle size={32} /> : <CheckCircle2 size={32} />}
-              </div>
-              <div className="space-y-1">
-                <h4 className={cn(
-                  "text-lg font-black uppercase tracking-tight",
-                  showAlert ? "text-red-700" : "text-emerald-700"
-                )}>
-                  {showAlert ? "Alerta Estratégico ⚠️" : "Saúde Operacional ✅"}
-                </h4>
-                <p className={cn(
-                  "text-sm font-medium",
-                  showAlert ? "text-red-600/80" : "text-emerald-600/80"
-                )}>
-                  {showAlert 
-                    ? "Este cliente precisa de atenção imediata. Risco operacional identificado." 
-                    : "Execução consistente. O cliente está sendo atendido dentro dos prazos."}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* AI Insights Section */}
-          <div className="bg-gray-900 rounded-[40px] p-8 text-white relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Sparkles size={120} />
-            </div>
-            
-            <div className="relative z-10 space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-emerald-400">
-                    <BrainCircuit size={20} />
-                  </div>
-                  <h4 className="text-xl font-bold">Insights Estratégicos do Cliente 💡</h4>
-                </div>
-                {!insights && (
-                  <button 
-                    onClick={onAnalyze}
-                    disabled={isAnalyzing}
-                    className="px-6 py-2 bg-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {isAnalyzing ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                    Gerar Análise IA
-                  </button>
-                )}
-              </div>
-
-              {isAnalyzing ? (
-                <div className="py-12 flex flex-col items-center justify-center gap-4">
-                  <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-                  <p className="text-emerald-400 font-bold animate-pulse">A IA está analisando o padrão de execução...</p>
-                </div>
-              ) : insights ? (
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <div className="bg-white/5 rounded-3xl p-6 border border-white/10">
-                    <ReactMarkdown>{insights}</ReactMarkdown>
-                  </div>
-                  <button 
-                    onClick={onAnalyze}
-                    className="mt-4 text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-2 transition-colors"
-                  >
-                    <RefreshCw size={12} />
-                    Atualizar Análise
-                  </button>
-                </div>
-              ) : (
-                <div className="py-12 text-center border-2 border-dashed border-white/10 rounded-[32px]">
-                  <p className="text-gray-400 font-medium">Clique no botão acima para gerar insights estratégicos baseados no histórico de tarefas.</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div className="flex items-center gap-2">
-            {[
-              { id: 'all', label: 'Todas', color: 'gray' },
-              { id: 'pending', label: 'Pendentes', color: 'blue' },
-              { id: 'overdue', label: 'Vencidas', color: 'red' },
-              { id: 'completed', label: 'Concluídas', color: 'emerald' }
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={cn(
-                  "px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all",
-                  filter === f.id 
-                    ? `bg-${f.color}-500 text-white shadow-lg shadow-${f.color}-500/20` 
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Timeline List */}
-          <div className="relative space-y-6 before:absolute before:left-6 before:top-0 before:bottom-0 before:w-px before:bg-gray-100">
-            {filteredTasks.length > 0 ? (
-              filteredTasks.map((task: any, idx: number) => {
-                const deadline = task.deadline?.toDate ? task.deadline.toDate() : new Date(task.deadline);
-                const createdAt = task.createdAt?.toDate ? task.createdAt.toDate() : new Date(task.createdAt);
-                const isOverdue = task.status === 'overdue';
-                const isCompleted = task.status === 'completed';
-                const isNearDeadline = !isCompleted && !isOverdue && (deadline.getTime() - new Date().getTime() < 86400000);
-
-                return (
-                  <motion.div 
-                    key={task.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className="relative pl-14 group"
-                  >
-                    {/* Timeline Dot */}
-                    <div className={cn(
-                      "absolute left-4 top-6 w-4 h-4 rounded-full border-4 border-white shadow-sm z-10 transition-all group-hover:scale-125",
-                      isCompleted ? "bg-emerald-500" :
-                      isOverdue ? "bg-red-500" :
-                      isNearDeadline ? "bg-amber-500" : "bg-blue-500"
-                    )} />
-
-                    <div className={cn(
-                      "bg-white p-6 rounded-[32px] border transition-all hover:shadow-xl hover:shadow-black/5",
-                      isOverdue ? "border-red-100 bg-red-50/10" : "border-black/5"
-                    )}>
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-2 flex-1">
-                          <div className="flex items-center gap-3">
-                            <h5 className="text-lg font-bold text-gray-900">{task.title}</h5>
-                            <span className={cn(
-                              "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest",
-                              task.priority === 'high' ? "bg-red-50 text-red-600" :
-                              task.priority === 'medium' ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
-                            )}>
-                              {task.priority === 'high' ? '🔴 Alta' : task.priority === 'medium' ? '🟡 Média' : '🔵 Baixa'}
-                            </span>
-                          </div>
-                          
-                          <div className="flex flex-wrap items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                            <div className="flex items-center gap-1.5">
-                              <Calendar size={12} />
-                              Criada: {createdAt.toLocaleDateString('pt-BR')}
-                            </div>
-                            <div className={cn(
-                              "flex items-center gap-1.5",
-                              isOverdue ? "text-red-600" : isNearDeadline ? "text-amber-600" : ""
-                            )}>
-                              <Clock size={12} />
-                              Prazo: {deadline.toLocaleString('pt-BR')}
-                            </div>
-                            {isCompleted && (
-                              <div className="flex items-center gap-1.5 text-emerald-600">
-                                <CheckCircle2 size={12} />
-                                Concluída em: {task.completedAt?.toDate ? task.completedAt.toDate().toLocaleString('pt-BR') : new Date(task.completedAt).toLocaleString('pt-BR')}
-                              </div>
-                            )}
-                            <div className={cn(
-                              "flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-50",
-                              isOverdue ? "text-red-700 bg-red-50" : 
-                              isCompleted ? "text-emerald-700 bg-emerald-50" : 
-                              isNearDeadline ? "text-amber-700 bg-amber-50" : "text-blue-700 bg-blue-50"
-                            )}>
-                              <Clock size={10} />
-                              {getTaskDuration(task)}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {!isCompleted && (
-                            <button 
-                              onClick={() => onComplete(task)}
-                              className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
-                              title="Concluir"
-                            >
-                              <CheckCircle2 size={20} />
-                            </button>
-                          )}
-                          <button 
-                            onClick={() => onEdit(task)}
-                            className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-500 hover:text-white transition-all shadow-sm"
-                            title="Editar"
-                          >
-                            <Edit3 size={20} />
-                          </button>
-                          <button 
-                            onClick={() => onDelete(task.id, task.clientId, task.title)}
-                            className="p-3 bg-red-50 text-red-600 rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
-                            title="Excluir"
-                          >
-                            <Trash2 size={20} />
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {task.description && (
-                        <p className="mt-4 text-sm text-gray-500 leading-relaxed border-t border-black/5 pt-4">
-                          {task.description}
-                        </p>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })
-            ) : (
-              <div className="py-20 text-center space-y-4 opacity-40">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
-                  <LayoutDashboard size={40} className="text-gray-400" />
-                </div>
-                <div className="space-y-1">
-                  <p className="font-black uppercase tracking-widest text-gray-900">Nenhuma tarefa encontrada</p>
-                  <p className="text-xs font-medium">Tente mudar o filtro ou adicione uma nova tarefa.</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       </motion.div>
     </div>
   );
